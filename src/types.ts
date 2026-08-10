@@ -23,4 +23,16 @@ export interface ModelOption {
   tagline: string
   badge: string
   contextWindow: string
+  webllmId: string
+  downloadSize: string
+}
+
+export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error'
+
+export interface EngineState {
+  status: EngineStatus
+  modelId: string | null
+  progress: number
+  progressText: string
+  error: string | null
 }

@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Conversation, Message } from './types'
-import { DEFAULT_MODEL_ID } from './data/models'
+import type { Conversation, EngineState, Message } from './types'
+import { DEFAULT_MODEL_ID, MODELS } from './data/models'
 import { loadConversations, saveConversations } from './lib/storage'
-import { generateReply, streamReply } from './lib/respond'
+import { toChatHistory, streamModelReply } from './lib/respond'
+import { getEngine, interruptGeneration, isWebGPUSupported } from './lib/engine'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
 import { Composer } from './components/Composer'
 import { EmptyState } from './components/EmptyState'
+import { EngineBanner } from './components/EngineBanner'
 import { MenuIcon } from './components/icons'
 
 function makeId() {
@@ -19,11 +21,22 @@ function titleFromText(text: string) {
   return words.length < text.trim().length ? `${words}…` : words
 }
 
+function isMobile() {
+  return !window.matchMedia('(min-width: 768px)').matches
+}
+
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 768px)').matches)
   const [sending, setSending] = useState(false)
+  const [engineState, setEngineState] = useState<EngineState>({
+    status: 'idle',
+    modelId: null,
+    progress: 0,
+    progressText: '',
+    error: null,
+  })
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -66,9 +79,15 @@ export default function App() {
     if (activeId === id) setActiveId(null)
   }
 
+  function stopGenerating() {
+    abortRef.current?.abort()
+    interruptGeneration()
+    setSending(false)
+  }
+
   async function sendMessage(text: string) {
     const conv = active ?? createConversation()
-    const modelId = conv.modelId
+    const model = MODELS.find((m) => m.id === conv.modelId) ?? MODELS[0]
 
     const userMsg: Message = { id: makeId(), role: 'user', content: text, createdAt: Date.now() }
     const assistantId = makeId()
@@ -76,9 +95,11 @@ export default function App() {
       id: assistantId,
       role: 'assistant',
       content: '',
-      modelId,
+      modelId: conv.modelId,
       createdAt: Date.now(),
     }
+
+    const priorMessages = conv.messages
 
     updateConversation(conv.id, (c) => ({
       ...c,
@@ -87,23 +108,69 @@ export default function App() {
       updatedAt: Date.now(),
     }))
 
+    if (!(await isWebGPUSupported())) {
+      updateConversation(conv.id, (c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.id === assistantId
+            ? {
+                ...m,
+                content:
+                  "This browser doesn't support WebGPU, so Haven can't run a model on-device here. Try a recent version of Chrome, Edge, or Firefox on desktop.",
+              }
+            : m,
+        ),
+      }))
+      return
+    }
+
     setSending(true)
     const controller = new AbortController()
     abortRef.current = controller
-    const fullText = generateReply(text, modelId)
 
-    await streamReply(
-      fullText,
-      (soFar) => {
-        updateConversation(conv.id, (c) => ({
-          ...c,
-          messages: c.messages.map((m) => (m.id === assistantId ? { ...m, content: soFar } : m)),
-        }))
-      },
-      controller.signal,
-    )
+    try {
+      const engine = await getEngine(model.webllmId, (report) => {
+        setEngineState({
+          status: 'loading',
+          modelId: model.webllmId,
+          progress: report.progress,
+          progressText: report.text,
+          error: null,
+        })
+      })
+      setEngineState({ status: 'ready', modelId: model.webllmId, progress: 1, progressText: '', error: null })
 
-    setSending(false)
+      const history = toChatHistory([...priorMessages, userMsg])
+
+      await streamModelReply(
+        engine,
+        history,
+        (soFar) => {
+          updateConversation(conv.id, (c) => ({
+            ...c,
+            messages: c.messages.map((m) => (m.id === assistantId ? { ...m, content: soFar } : m)),
+          }))
+        },
+        controller.signal,
+      )
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err)
+      const message = /fetch/i.test(raw)
+        ? "Couldn't download the model. Check your internet connection and try again."
+        : raw
+      setEngineState({ status: 'error', modelId: model.webllmId, progress: 0, progressText: '', error: message })
+      updateConversation(conv.id, (c) => ({
+        ...c,
+        messages: c.messages.map((m) =>
+          m.id === assistantId && m.content.length === 0
+            ? { ...m, content: `Couldn't generate a reply: ${message}` }
+            : m,
+        ),
+      }))
+    } finally {
+      setSending(false)
+      setEngineState((s) => (s.status === 'loading' ? { ...s, status: 'idle' } : s))
+    }
   }
 
   return (
@@ -111,10 +178,17 @@ export default function App() {
       <Sidebar
         conversations={conversations}
         activeId={activeId}
-        onSelect={setActiveId}
-        onNew={() => createConversation()}
+        onSelect={(id) => {
+          setActiveId(id)
+          if (isMobile()) setSidebarOpen(false)
+        }}
+        onNew={() => {
+          createConversation()
+          if (isMobile()) setSidebarOpen(false)
+        }}
         onDelete={deleteConversation}
         open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -134,6 +208,8 @@ export default function App() {
           />
         </header>
 
+        <EngineBanner state={engineState} />
+
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {!active || active.messages.length === 0 ? (
             <EmptyState onPick={sendMessage} />
@@ -146,7 +222,7 @@ export default function App() {
           )}
         </div>
 
-        <Composer disabled={sending} onSend={sendMessage} />
+        <Composer disabled={sending} onSend={sendMessage} onStop={sending ? stopGenerating : undefined} />
       </div>
     </div>
   )

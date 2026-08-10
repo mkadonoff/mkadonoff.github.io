@@ -1,12 +1,13 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
-import { SendIcon } from './icons'
+import { SendIcon, StopIcon } from './icons'
 
 interface Props {
   disabled: boolean
   onSend: (text: string) => void
+  onStop?: () => void
 }
 
-export function Composer({ disabled, onSend }: Props) {
+export function Composer({ disabled, onSend, onStop }: Props) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -46,19 +47,30 @@ export function Composer({ disabled, onSend }: Props) {
           }}
           onKeyDown={onKeyDown}
           rows={1}
+          disabled={disabled}
           placeholder="Message Haven…"
-          className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-[15px] text-neutral-100 placeholder-neutral-500 outline-none"
+          className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-[15px] text-neutral-100 placeholder-neutral-500 outline-none disabled:opacity-60"
         />
-        <button
-          onClick={submit}
-          disabled={disabled || !value.trim()}
-          className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-neutral-950 transition-opacity disabled:cursor-not-allowed disabled:opacity-30"
-        >
-          <SendIcon className="h-4 w-4" />
-        </button>
+        {onStop ? (
+          <button
+            onClick={onStop}
+            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-neutral-200 hover:bg-white/20"
+          >
+            <StopIcon className="h-4 w-4" />
+          </button>
+        ) : (
+          <button
+            onClick={submit}
+            disabled={disabled || !value.trim()}
+            className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-neutral-950 transition-opacity disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <SendIcon className="h-4 w-4" />
+          </button>
+        )}
       </div>
       <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-neutral-600">
-        Demo mode — every reply is generated locally in your browser. Nothing you type leaves this device.
+        Runs on-device via WebGPU — nothing you type or generate leaves your browser. First reply from a model
+        downloads and caches it; after that it works offline.
       </p>
     </div>
   )

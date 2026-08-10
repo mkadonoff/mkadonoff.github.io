@@ -50,7 +50,9 @@ export function ModelPicker({ modelId, onChange }: Props) {
                 </span>
               </div>
               <span className="mt-0.5 text-xs text-neutral-400">{m.tagline}</span>
-              <span className="mt-1 text-[11px] text-neutral-500">{m.contextWindow}</span>
+              <span className="mt-1 text-[11px] text-neutral-500">
+                {m.contextWindow} · {m.downloadSize} download
+              </span>
             </button>
           ))}
         </div>
