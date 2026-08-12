@@ -40,7 +40,14 @@ function getPosition(): Promise<GeolocationPosition> {
   })
 }
 
-async function reverseGeocode(latitude: number, longitude: number): Promise<string | null> {
+// Browser caches the last fix for up to 5 minutes (see getPosition), so calling this
+// repeatedly (e.g. once per message for geofencing) doesn't re-prompt or hit the GPS each time.
+export async function getCurrentCoords(): Promise<{ latitude: number; longitude: number }> {
+  const position = await getPosition()
+  return { latitude: position.coords.latitude, longitude: position.coords.longitude }
+}
+
+export async function reverseGeocode(latitude: number, longitude: number): Promise<string | null> {
   const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
   const res = await fetch(url)
   if (!res.ok) return null
@@ -51,8 +58,7 @@ async function reverseGeocode(latitude: number, longitude: number): Promise<stri
 
 async function resolveLocationLine(): Promise<string | null> {
   try {
-    const position = await getPosition()
-    const { latitude, longitude } = position.coords
+    const { latitude, longitude } = await getCurrentCoords()
     const coords = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
     const place = await reverseGeocode(latitude, longitude)
     return place

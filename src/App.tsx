@@ -4,7 +4,8 @@ import { DEFAULT_MODEL_ID, MODELS } from './data/models'
 import { loadConversations, saveConversations } from './lib/storage'
 import { toChatHistory, streamModelReply } from './lib/respond'
 import { getEngine, interruptGeneration, isWebGPUSupported } from './lib/engine'
-import { getLocationLine } from './lib/location'
+import { getLocationLine, isLocationSharingEnabled } from './lib/location'
+import { buildGeofenceLine, captureGeofenceAnchor, stripGeofenceMarker } from './lib/geofence'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
@@ -142,19 +143,59 @@ export default function App() {
       setEngineState({ status: 'ready', modelId: model.webllmId, progress: 1, progressText: '', error: null })
 
       const locationLine = await getLocationLine()
-      const history = toChatHistory([...priorMessages, userMsg], locationLine)
 
+      let geofenceLine: string | null = null
+      if (isLocationSharingEnabled()) {
+        let anchor = conv.geofenceAnchor
+        if (!anchor) {
+          try {
+            anchor = await captureGeofenceAnchor()
+            updateConversation(conv.id, (c) => ({ ...c, geofenceAnchor: anchor }))
+          } catch {
+            anchor = undefined
+          }
+        }
+        if (anchor) geofenceLine = await buildGeofenceLine(anchor)
+      }
+
+      const history = toChatHistory([...priorMessages, userMsg], locationLine, geofenceLine)
+
+      let resetRequested = false
       await streamModelReply(
         engine,
         history,
         (soFar) => {
+          const { cleaned, triggered } = stripGeofenceMarker(soFar)
+          if (triggered) resetRequested = true
           updateConversation(conv.id, (c) => ({
             ...c,
-            messages: c.messages.map((m) => (m.id === assistantId ? { ...m, content: soFar } : m)),
+            messages: c.messages.map((m) => (m.id === assistantId ? { ...m, content: cleaned } : m)),
           }))
         },
         controller.signal,
       )
+
+      if (resetRequested) {
+        try {
+          const newAnchor = await captureGeofenceAnchor()
+          updateConversation(conv.id, (c) => ({
+            ...c,
+            geofenceAnchor: newAnchor,
+            messages: c.messages.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content: `${m.content}\n\n_Geofence start point updated to your current location${
+                      newAnchor.place ? ` (${newAnchor.place})` : ''
+                    }._`,
+                  }
+                : m,
+            ),
+          }))
+        } catch {
+          // couldn't re-resolve location — leave the previous anchor in place
+        }
+      }
     } catch (err) {
       const raw = err instanceof Error ? err.message : String(err)
       const message = /fetch/i.test(raw)
@@ -224,7 +265,12 @@ export default function App() {
           )}
         </div>
 
-        <Composer disabled={sending} onSend={sendMessage} onStop={sending ? stopGenerating : undefined} />
+        <Composer
+          disabled={sending}
+          onSend={sendMessage}
+          onStop={sending ? stopGenerating : undefined}
+          geofenceActive={!!active?.geofenceAnchor}
+        />
       </div>
     </div>
   )

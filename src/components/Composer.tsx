@@ -7,9 +7,10 @@ interface Props {
   disabled: boolean
   onSend: (text: string) => void
   onStop?: () => void
+  geofenceActive?: boolean
 }
 
-export function Composer({ disabled, onSend, onStop }: Props) {
+export function Composer({ disabled, onSend, onStop, geofenceActive }: Props) {
   const [value, setValue] = useState('')
   const [locationSharing, setLocationSharing] = useState(isLocationSharingEnabled)
   const [showPrompt, setShowPrompt] = useState(false)
@@ -64,6 +65,14 @@ export function Composer({ disabled, onSend, onStop }: Props) {
           {locationSharing && !peekLocationLine() ? (
             <p className="mt-1.5 text-[11px] text-amber-400">
               Location sharing is on but hasn't resolved yet — it'll be added the moment it does.
+            </p>
+          ) : null}
+          {geofenceActive ? (
+            <p className="mt-1.5 text-[11px] text-neutral-500">
+              Geofence tracking is on for this chat — a line reporting distance from where the
+              conversation started is computed fresh and added right before each send, so it isn't
+              shown in this preview. Ask the model to reset the start point and it can do so on its
+              own.
             </p>
           ) : null}
         </div>

@@ -8,6 +8,13 @@ export interface Message {
   createdAt: number
 }
 
+export interface GeofenceAnchor {
+  latitude: number
+  longitude: number
+  place: string | null
+  setAt: number
+}
+
 export interface Conversation {
   id: string
   title: string
@@ -15,6 +22,7 @@ export interface Conversation {
   messages: Message[]
   createdAt: number
   updatedAt: number
+  geofenceAnchor?: GeofenceAnchor
 }
 
 export interface ModelOption {
