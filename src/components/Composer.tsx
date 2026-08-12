@@ -1,6 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
 import { InfoIcon, LocationIcon, SendIcon, StopIcon } from './icons'
-import { isLocationSharingEnabled, peekLocationLine, setLocationSharingEnabled } from '../lib/location'
+import { getLocationLine, isLocationSharingEnabled, peekLocationLine, setLocationSharingEnabled } from '../lib/location'
 import { buildSystemPrompt } from '../lib/respond'
 
 interface Props {
@@ -13,12 +13,18 @@ export function Composer({ disabled, onSend, onStop }: Props) {
   const [value, setValue] = useState('')
   const [locationSharing, setLocationSharing] = useState(isLocationSharingEnabled)
   const [showPrompt, setShowPrompt] = useState(false)
+  const [, forceRerender] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   function toggleLocationSharing() {
     const next = !locationSharing
     setLocationSharingEnabled(next)
     setLocationSharing(next)
+    if (next) {
+      // Resolve right away instead of waiting for the next send, so the prompt
+      // viewer (and the model) has it as soon as possible.
+      getLocationLine().then(() => forceRerender((v) => v + 1))
+    }
   }
 
   function submit() {
