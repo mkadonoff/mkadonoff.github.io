@@ -5,9 +5,19 @@ import { interruptGeneration } from './engine'
 const SYSTEM_PROMPT =
   'You are Haven, a private AI assistant. You run entirely on the user\'s device — no message ever leaves their browser. Be helpful, direct, and concise.'
 
+function currentDateTimeLine(): string {
+  const now = new Date()
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const formatted = new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'full',
+    timeStyle: 'short',
+  }).format(now)
+  return `Current date and time: ${formatted} (${timeZone}).`
+}
+
 export function toChatHistory(messages: Message[]) {
   return [
-    { role: 'system' as const, content: SYSTEM_PROMPT },
+    { role: 'system' as const, content: `${SYSTEM_PROMPT}\n${currentDateTimeLine()}` },
     ...messages
       .filter((m) => m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content })),
