@@ -1,5 +1,6 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
-import { SendIcon, StopIcon } from './icons'
+import { LocationIcon, SendIcon, StopIcon } from './icons'
+import { isLocationSharingEnabled, setLocationSharingEnabled } from '../lib/location'
 
 interface Props {
   disabled: boolean
@@ -9,7 +10,14 @@ interface Props {
 
 export function Composer({ disabled, onSend, onStop }: Props) {
   const [value, setValue] = useState('')
+  const [locationSharing, setLocationSharing] = useState(isLocationSharingEnabled)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  function toggleLocationSharing() {
+    const next = !locationSharing
+    setLocationSharingEnabled(next)
+    setLocationSharing(next)
+  }
 
   function submit() {
     const trimmed = value.trim()
@@ -51,6 +59,20 @@ export function Composer({ disabled, onSend, onStop }: Props) {
           placeholder="Message Haven…"
           className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-[15px] text-neutral-100 placeholder-neutral-500 outline-none disabled:opacity-60"
         />
+        <button
+          onClick={toggleLocationSharing}
+          title={
+            locationSharing
+              ? 'Location sharing on — your approximate location is sent to a geocoding service and given to the model'
+              : 'Share your approximate location with the model'
+          }
+          aria-pressed={locationSharing}
+          className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
+            locationSharing ? 'bg-amber-500/20 text-amber-400' : 'bg-white/10 text-neutral-400 hover:bg-white/20'
+          }`}
+        >
+          <LocationIcon className="h-4 w-4" />
+        </button>
         {onStop ? (
           <button
             onClick={onStop}
@@ -71,6 +93,9 @@ export function Composer({ disabled, onSend, onStop }: Props) {
       <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-neutral-600">
         Runs on-device via WebGPU — nothing you type or generate leaves your browser. First reply from a model
         downloads and caches it; after that it works offline.
+        {locationSharing
+          ? ' Location sharing is on: your device sends coordinates to a geocoding lookup to resolve a place name for the model.'
+          : ''}
       </p>
     </div>
   )

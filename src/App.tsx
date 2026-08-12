@@ -4,6 +4,7 @@ import { DEFAULT_MODEL_ID, MODELS } from './data/models'
 import { loadConversations, saveConversations } from './lib/storage'
 import { toChatHistory, streamModelReply } from './lib/respond'
 import { getEngine, interruptGeneration, isWebGPUSupported } from './lib/engine'
+import { getLocationLine } from './lib/location'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
@@ -140,7 +141,8 @@ export default function App() {
       })
       setEngineState({ status: 'ready', modelId: model.webllmId, progress: 1, progressText: '', error: null })
 
-      const history = toChatHistory([...priorMessages, userMsg])
+      const locationLine = await getLocationLine()
+      const history = toChatHistory([...priorMessages, userMsg], locationLine)
 
       await streamModelReply(
         engine,
