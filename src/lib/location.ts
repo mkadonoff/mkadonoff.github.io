@@ -52,8 +52,12 @@ async function reverseGeocode(latitude: number, longitude: number): Promise<stri
 async function resolveLocationLine(): Promise<string | null> {
   try {
     const position = await getPosition()
-    const place = await reverseGeocode(position.coords.latitude, position.coords.longitude)
-    return place ? `User's approximate location: ${place}.` : null
+    const { latitude, longitude } = position.coords
+    const coords = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+    const place = await reverseGeocode(latitude, longitude)
+    return place
+      ? `User's approximate location: ${place} (lat/lon ${coords}).`
+      : `User's approximate location: lat/lon ${coords}.`
   } catch {
     return null
   }
