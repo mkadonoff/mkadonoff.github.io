@@ -15,10 +15,13 @@ function currentDateTimeLine(): string {
   return `Current date and time: ${formatted} (${timeZone}).`
 }
 
+export function buildSystemPrompt(locationLine?: string | null): string {
+  return [SYSTEM_PROMPT, currentDateTimeLine(), locationLine].filter(Boolean).join('\n')
+}
+
 export function toChatHistory(messages: Message[], locationLine?: string | null) {
-  const systemContent = [SYSTEM_PROMPT, currentDateTimeLine(), locationLine].filter(Boolean).join('\n')
   return [
-    { role: 'system' as const, content: systemContent },
+    { role: 'system' as const, content: buildSystemPrompt(locationLine) },
     ...messages
       .filter((m) => m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content })),

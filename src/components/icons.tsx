@@ -80,6 +80,16 @@ export function LocationIcon({ className }: IconProps) {
   )
 }
 
+export function InfoIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12 11v5.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="12" cy="8" r="0.9" fill="currentColor" />
+    </svg>
+  )
+}
+
 export function MenuIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>

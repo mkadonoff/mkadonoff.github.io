@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'haven.locationSharing.v1'
 
 let cachedLine: Promise<string | null> | null = null
+let resolvedLine: string | null = null
 
 export function isLocationSharingEnabled(): boolean {
   try {
@@ -17,6 +18,13 @@ export function setLocationSharingEnabled(enabled: boolean) {
     // storage unavailable (private browsing, quota) — setting won't persist across reloads
   }
   cachedLine = null
+  resolvedLine = null
+}
+
+// Synchronous snapshot of whatever getLocationLine() last resolved, for UI display.
+// Returns null before the first resolution (e.g. sharing was just turned on).
+export function peekLocationLine(): string | null {
+  return isLocationSharingEnabled() ? resolvedLine : null
 }
 
 function getPosition(): Promise<GeolocationPosition> {
@@ -55,6 +63,11 @@ async function resolveLocationLine(): Promise<string | null> {
 // re-hitting the reverse-geocoding API on every message.
 export function getLocationLine(): Promise<string | null> {
   if (!isLocationSharingEnabled()) return Promise.resolve(null)
-  if (!cachedLine) cachedLine = resolveLocationLine()
+  if (!cachedLine) {
+    cachedLine = resolveLocationLine().then((line) => {
+      resolvedLine = line
+      return line
+    })
+  }
   return cachedLine
 }
