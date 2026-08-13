@@ -6,6 +6,7 @@ import { toChatHistory, streamModelReply } from './lib/respond'
 import { getEngine, interruptGeneration, isWebGPUSupported } from './lib/engine'
 import { getLocationLine, isLocationSharingEnabled } from './lib/location'
 import { buildGeofenceLine, captureGeofenceAnchor, stripGeofenceMarker } from './lib/geofence'
+import { heartRateLine } from './lib/heartRate'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
@@ -158,7 +159,7 @@ export default function App() {
         if (anchor) geofenceLine = await buildGeofenceLine(anchor)
       }
 
-      const history = toChatHistory([...priorMessages, userMsg], locationLine, geofenceLine)
+      const history = toChatHistory([...priorMessages, userMsg], locationLine, geofenceLine, heartRateLine())
 
       let resetRequested = false
       await streamModelReply(

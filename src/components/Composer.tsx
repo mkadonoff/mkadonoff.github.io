@@ -1,7 +1,9 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
-import { InfoIcon, LocationIcon, SendIcon, StopIcon } from './icons'
+import { HeartIcon, InfoIcon, LocationIcon, SendIcon, StopIcon } from './icons'
 import { getLocationLine, isLocationSharingEnabled, peekLocationLine, setLocationSharingEnabled } from '../lib/location'
+import { getReading, heartRateLine } from '../lib/heartRate'
 import { buildSystemPrompt } from '../lib/respond'
+import { HeartRatePanel } from './HeartRatePanel'
 
 interface Props {
   disabled: boolean
@@ -14,6 +16,7 @@ export function Composer({ disabled, onSend, onStop, geofenceActive }: Props) {
   const [value, setValue] = useState('')
   const [locationSharing, setLocationSharing] = useState(isLocationSharingEnabled)
   const [showPrompt, setShowPrompt] = useState(false)
+  const [showHeartRate, setShowHeartRate] = useState(false)
   const [, forceRerender] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -54,13 +57,19 @@ export function Composer({ disabled, onSend, onStop, geofenceActive }: Props) {
 
   return (
     <div className="border-t border-white/10 bg-neutral-950/80 p-4">
+      {showHeartRate ? (
+        <HeartRatePanel
+          onClose={() => setShowHeartRate(false)}
+          onReading={() => forceRerender((v) => v + 1)}
+        />
+      ) : null}
       {showPrompt ? (
         <div className="mx-auto mb-2 max-w-3xl rounded-xl border border-white/10 bg-black/40 p-3">
           <p className="mb-1.5 text-[11px] font-medium text-neutral-400">
             Exactly what's sent as the system prompt on your next message:
           </p>
           <pre className="whitespace-pre-wrap text-[11px] leading-relaxed text-neutral-300">
-            {buildSystemPrompt(peekLocationLine())}
+            {buildSystemPrompt(peekLocationLine(), null, heartRateLine())}
           </pre>
           {locationSharing && !peekLocationLine() ? (
             <p className="mt-1.5 text-[11px] text-amber-400">
@@ -100,6 +109,18 @@ export function Composer({ disabled, onSend, onStop, geofenceActive }: Props) {
           }`}
         >
           <InfoIcon className="h-4 w-4" />
+        </button>
+        <button
+          onClick={() => setShowHeartRate((v) => !v)}
+          title={getReading() ? 'Heart rate shared with the model — tap to re-measure' : 'Measure your heart rate'}
+          aria-pressed={showHeartRate}
+          className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
+            showHeartRate || getReading()
+              ? 'bg-amber-500/20 text-amber-400'
+              : 'bg-white/10 text-neutral-400 hover:bg-white/20'
+          }`}
+        >
+          <HeartIcon className="h-4 w-4" />
         </button>
         <button
           onClick={toggleLocationSharing}

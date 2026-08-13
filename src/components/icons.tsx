@@ -90,6 +90,19 @@ export function InfoIcon({ className }: IconProps) {
   )
 }
 
+export function HeartIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M12 20s-7-4.4-7-9.3A4 4 0 0112 8.5a4 4 0 017 2.2C19 15.6 12 20 12 20z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 export function MenuIcon({ className }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className}>

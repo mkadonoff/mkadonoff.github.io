@@ -18,13 +18,21 @@ function currentDateTimeLine(): string {
 export function buildSystemPrompt(
   locationLine?: string | null,
   geofenceLine?: string | null,
+  heartRateLine?: string | null,
 ): string {
-  return [SYSTEM_PROMPT, currentDateTimeLine(), locationLine, geofenceLine].filter(Boolean).join('\n')
+  return [SYSTEM_PROMPT, currentDateTimeLine(), locationLine, geofenceLine, heartRateLine]
+    .filter(Boolean)
+    .join('\n')
 }
 
-export function toChatHistory(messages: Message[], locationLine?: string | null, geofenceLine?: string | null) {
+export function toChatHistory(
+  messages: Message[],
+  locationLine?: string | null,
+  geofenceLine?: string | null,
+  heartRateLine?: string | null,
+) {
   return [
-    { role: 'system' as const, content: buildSystemPrompt(locationLine, geofenceLine) },
+    { role: 'system' as const, content: buildSystemPrompt(locationLine, geofenceLine, heartRateLine) },
     ...messages
       .filter((m) => m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content })),
