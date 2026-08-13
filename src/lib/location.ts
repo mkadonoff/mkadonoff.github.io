@@ -3,14 +3,35 @@ const STORAGE_KEY = 'haven.locationSharing.v1'
 let cachedLine: Promise<string | null> | null = null
 let resolvedLine: string | null = null
 
-// Defaults to on: an unset key means the user hasn't chosen, and the intended behaviour
-// is sharing. Once they toggle it, the stored value wins in both directions.
+// Off unless explicitly enabled — the public page shouldn't prompt a first-time visitor
+// for their location. Enable it for your own devices with ?location=on (see
+// applyLocationPreferenceFromUrl), which persists the choice from then on.
 export function isLocationSharingEnabled(): boolean {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    return raw === null ? true : raw === 'true'
+    return localStorage.getItem(STORAGE_KEY) === 'true'
   } catch {
-    return true
+    return false
+  }
+}
+
+/**
+ * Reads a ?location=on|off override out of the URL, stores it, and strips it from the
+ * address bar so it isn't carried into a shared link. Must run before React mounts, since
+ * components read the preference in their initial state.
+ */
+export function applyLocationPreferenceFromUrl() {
+  try {
+    const url = new URL(window.location.href)
+    const raw = url.searchParams.get('location')
+    if (raw === null) return
+
+    if (/^(on|1|true)$/i.test(raw)) setLocationSharingEnabled(true)
+    else if (/^(off|0|false)$/i.test(raw)) setLocationSharingEnabled(false)
+
+    url.searchParams.delete('location')
+    window.history.replaceState(null, '', url.toString())
+  } catch {
+    // malformed URL or no history access — fall back to the stored preference
   }
 }
 
