@@ -6,10 +6,16 @@ export function EngineBanner({ state }: { state: EngineState }) {
 
   const model = MODELS.find((m) => m.webllmId === state.modelId)
 
-  if (state.status === 'error') {
+  if (state.status === 'error' && state.error) {
     return (
-      <div className="border-b border-red-500/20 bg-red-500/10 px-4 py-2.5 text-center text-xs text-red-300">
-        {state.error}
+      <div className="border-b border-red-500/20 bg-red-500/10 px-4 py-2.5">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-xs font-medium text-red-300">{state.error.title}</p>
+          {state.error.hint ? <p className="mt-0.5 text-xs text-red-300/80">{state.error.hint}</p> : null}
+          {state.error.detail ? (
+            <p className="mt-1 text-[11px] text-red-300/50">{state.error.detail}</p>
+          ) : null}
+        </div>
       </div>
     )
   }

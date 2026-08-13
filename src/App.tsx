@@ -7,6 +7,7 @@ import { getEngine, interruptGeneration, isWebGPUSupported } from './lib/engine'
 import { getLocationLine, isLocationSharingEnabled, setLocationSharingEnabled } from './lib/location'
 import { buildGeofenceLine, captureGeofenceAnchor, stripGeofenceMarker } from './lib/geofence'
 import { getReading, heartRateLine } from './lib/heartRate'
+import { describeEngineError, engineErrorText } from './lib/engineErrors'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
@@ -216,16 +217,13 @@ export default function App() {
         }
       }
     } catch (err) {
-      const raw = err instanceof Error ? err.message : String(err)
-      const message = /fetch/i.test(raw)
-        ? "Couldn't download the model. Check your internet connection and try again."
-        : raw
-      setEngineState({ status: 'error', modelId: model.webllmId, progress: 0, progressText: '', error: message })
+      const error = describeEngineError(err)
+      setEngineState({ status: 'error', modelId: model.webllmId, progress: 0, progressText: '', error })
       updateConversation(conv.id, (c) => ({
         ...c,
         messages: c.messages.map((m) =>
           m.id === assistantId && m.content.length === 0
-            ? { ...m, content: `Couldn't generate a reply: ${message}` }
+            ? { ...m, content: engineErrorText(error) }
             : m,
         ),
       }))

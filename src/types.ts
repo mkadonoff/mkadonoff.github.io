@@ -37,10 +37,19 @@ export interface ModelOption {
 
 export type EngineStatus = 'idle' | 'loading' | 'ready' | 'error'
 
+export interface EngineError {
+  /** One-line plain-language explanation. */
+  title: string
+  /** Suggested next step, when there is a useful one. */
+  hint: string | null
+  /** The original message, kept so nothing is lost — displayed demoted. */
+  detail: string | null
+}
+
 export interface EngineState {
   status: EngineStatus
   modelId: string | null
   progress: number
   progressText: string
-  error: string | null
+  error: EngineError | null
 }
