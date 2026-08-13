@@ -1,35 +1,16 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
-import { HeartIcon, InfoIcon, LocationIcon, SendIcon, StopIcon } from './icons'
-import { getLocationLine, isLocationSharingEnabled, peekLocationLine, setLocationSharingEnabled } from '../lib/location'
-import { getReading, heartRateLine } from '../lib/heartRate'
-import { buildSystemPrompt } from '../lib/respond'
-import { HeartRatePanel } from './HeartRatePanel'
+import { SendIcon, StopIcon } from './icons'
 
 interface Props {
   disabled: boolean
   onSend: (text: string) => void
   onStop?: () => void
-  geofenceActive?: boolean
+  locationSharing: boolean
 }
 
-export function Composer({ disabled, onSend, onStop, geofenceActive }: Props) {
+export function Composer({ disabled, onSend, onStop, locationSharing }: Props) {
   const [value, setValue] = useState('')
-  const [locationSharing, setLocationSharing] = useState(isLocationSharingEnabled)
-  const [showPrompt, setShowPrompt] = useState(false)
-  const [showHeartRate, setShowHeartRate] = useState(false)
-  const [, forceRerender] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  function toggleLocationSharing() {
-    const next = !locationSharing
-    setLocationSharingEnabled(next)
-    setLocationSharing(next)
-    if (next) {
-      // Resolve right away instead of waiting for the next send, so the prompt
-      // viewer (and the model) has it as soon as possible.
-      getLocationLine().then(() => forceRerender((v) => v + 1))
-    }
-  }
 
   function submit() {
     const trimmed = value.trim()
@@ -57,35 +38,6 @@ export function Composer({ disabled, onSend, onStop, geofenceActive }: Props) {
 
   return (
     <div className="border-t border-white/10 bg-neutral-950/80 p-4">
-      {showHeartRate ? (
-        <HeartRatePanel
-          onClose={() => setShowHeartRate(false)}
-          onReading={() => forceRerender((v) => v + 1)}
-        />
-      ) : null}
-      {showPrompt ? (
-        <div className="mx-auto mb-2 max-w-3xl rounded-xl border border-white/10 bg-black/40 p-3">
-          <p className="mb-1.5 text-[11px] font-medium text-neutral-400">
-            Exactly what's sent as the system prompt on your next message:
-          </p>
-          <pre className="whitespace-pre-wrap text-[11px] leading-relaxed text-neutral-300">
-            {buildSystemPrompt(peekLocationLine(), null, heartRateLine())}
-          </pre>
-          {locationSharing && !peekLocationLine() ? (
-            <p className="mt-1.5 text-[11px] text-amber-400">
-              Location sharing is on but hasn't resolved yet — it'll be added the moment it does.
-            </p>
-          ) : null}
-          {geofenceActive ? (
-            <p className="mt-1.5 text-[11px] text-neutral-500">
-              Geofence tracking is on for this chat — a line reporting distance from where the
-              conversation started is computed fresh and added right before each send, so it isn't
-              shown in this preview. Ask the model to reset the start point and it can do so on its
-              own.
-            </p>
-          ) : null}
-        </div>
-      ) : null}
       <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 focus-within:border-amber-500/50">
         <textarea
           ref={textareaRef}
@@ -100,42 +52,6 @@ export function Composer({ disabled, onSend, onStop, geofenceActive }: Props) {
           placeholder="Message Haven…"
           className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-[15px] text-neutral-100 placeholder-neutral-500 outline-none disabled:opacity-60"
         />
-        <button
-          onClick={() => setShowPrompt((v) => !v)}
-          title={showPrompt ? 'Hide system prompt' : 'View the system prompt sent to the model'}
-          aria-pressed={showPrompt}
-          className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
-            showPrompt ? 'bg-amber-500/20 text-amber-400' : 'bg-white/10 text-neutral-400 hover:bg-white/20'
-          }`}
-        >
-          <InfoIcon className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => setShowHeartRate((v) => !v)}
-          title={getReading() ? 'Heart rate shared with the model — tap to re-measure' : 'Measure your heart rate'}
-          aria-pressed={showHeartRate}
-          className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
-            showHeartRate || getReading()
-              ? 'bg-amber-500/20 text-amber-400'
-              : 'bg-white/10 text-neutral-400 hover:bg-white/20'
-          }`}
-        >
-          <HeartIcon className="h-4 w-4" />
-        </button>
-        <button
-          onClick={toggleLocationSharing}
-          title={
-            locationSharing
-              ? 'Location sharing on — your approximate location is sent to a geocoding service and given to the model'
-              : 'Share your approximate location with the model'
-          }
-          aria-pressed={locationSharing}
-          className={`mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-colors ${
-            locationSharing ? 'bg-amber-500/20 text-amber-400' : 'bg-white/10 text-neutral-400 hover:bg-white/20'
-          }`}
-        >
-          <LocationIcon className="h-4 w-4" />
-        </button>
         {onStop ? (
           <button
             onClick={onStop}

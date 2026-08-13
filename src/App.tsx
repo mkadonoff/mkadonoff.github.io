@@ -4,16 +4,19 @@ import { DEFAULT_MODEL_ID, MODELS } from './data/models'
 import { loadConversations, saveConversations } from './lib/storage'
 import { toChatHistory, streamModelReply } from './lib/respond'
 import { getEngine, interruptGeneration, isWebGPUSupported } from './lib/engine'
-import { getLocationLine, isLocationSharingEnabled } from './lib/location'
+import { getLocationLine, isLocationSharingEnabled, setLocationSharingEnabled } from './lib/location'
 import { buildGeofenceLine, captureGeofenceAnchor, stripGeofenceMarker } from './lib/geofence'
-import { heartRateLine } from './lib/heartRate'
+import { getReading, heartRateLine } from './lib/heartRate'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
 import { Composer } from './components/Composer'
 import { EmptyState } from './components/EmptyState'
 import { EngineBanner } from './components/EngineBanner'
-import { MenuIcon } from './components/icons'
+import { HeartRatePanel } from './components/HeartRatePanel'
+import { SystemPromptPanel } from './components/SystemPromptPanel'
+import { ToolbarButton } from './components/ToolbarButton'
+import { HeartIcon, InfoIcon, LocationIcon, MenuIcon } from './components/icons'
 
 function makeId() {
   return Math.random().toString(36).slice(2, 10)
@@ -33,6 +36,10 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(() => window.matchMedia('(min-width: 768px)').matches)
   const [sending, setSending] = useState(false)
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [showHeartRate, setShowHeartRate] = useState(false)
+  const [locationSharing, setLocationSharing] = useState(isLocationSharingEnabled)
+  const [, forceRerender] = useState(0)
   const [engineState, setEngineState] = useState<EngineState>({
     status: 'idle',
     modelId: null,
@@ -80,6 +87,17 @@ export default function App() {
   function deleteConversation(id: string) {
     setConversations((prev) => prev.filter((c) => c.id !== id))
     if (activeId === id) setActiveId(null)
+  }
+
+  function toggleLocationSharing() {
+    const next = !locationSharing
+    setLocationSharingEnabled(next)
+    setLocationSharing(next)
+    if (next) {
+      // Resolve right away instead of waiting for the next send, so the prompt
+      // viewer (and the model) has it as soon as possible.
+      getLocationLine().then(() => forceRerender((v) => v + 1))
+    }
   }
 
   function stopGenerating() {
@@ -250,9 +268,52 @@ export default function App() {
               else createConversation(modelId)
             }}
           />
+
+          <div className="ml-auto flex items-center gap-0.5">
+            <ToolbarButton
+              icon={InfoIcon}
+              active={showPrompt}
+              title={showPrompt ? 'Hide system prompt' : 'View the system prompt sent to the model'}
+              onClick={() => setShowPrompt((v) => !v)}
+            />
+            <ToolbarButton
+              icon={HeartIcon}
+              active={showHeartRate || !!getReading()}
+              title={getReading() ? 'Heart rate shared with the model — tap to re-measure' : 'Measure your heart rate'}
+              onClick={() => setShowHeartRate((v) => !v)}
+            />
+            <ToolbarButton
+              icon={LocationIcon}
+              active={locationSharing}
+              title={
+                locationSharing
+                  ? 'Location sharing on — your approximate location is sent to a geocoding service and given to the model'
+                  : 'Share your approximate location with the model'
+              }
+              onClick={toggleLocationSharing}
+            />
+          </div>
         </header>
 
         <EngineBanner state={engineState} />
+
+        {showPrompt || showHeartRate ? (
+          <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-3">
+            {showHeartRate ? (
+              <HeartRatePanel
+                onClose={() => setShowHeartRate(false)}
+                onReading={() => forceRerender((v) => v + 1)}
+              />
+            ) : null}
+            {showPrompt ? (
+              <SystemPromptPanel
+                locationSharing={locationSharing}
+                geofenceActive={!!active?.geofenceAnchor}
+                onClose={() => setShowPrompt(false)}
+              />
+            ) : null}
+          </div>
+        ) : null}
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto">
           {!active || active.messages.length === 0 ? (
@@ -270,7 +331,7 @@ export default function App() {
           disabled={sending}
           onSend={sendMessage}
           onStop={sending ? stopGenerating : undefined}
-          geofenceActive={!!active?.geofenceAnchor}
+          locationSharing={locationSharing}
         />
       </div>
     </div>
