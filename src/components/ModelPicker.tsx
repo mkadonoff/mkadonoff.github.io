@@ -70,7 +70,7 @@ export function ModelPicker({ modelId, onChange }: Props) {
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-2 w-72 rounded-xl border border-white/10 bg-neutral-900 p-1.5 shadow-2xl shadow-black/50">
+        <div className="absolute z-20 mt-2 max-h-[60vh] w-72 overflow-y-auto rounded-xl border border-white/10 bg-neutral-900 p-1.5 shadow-2xl shadow-black/50">
           {MODELS.map((m) => {
             // Every model stays selectable — these signals are hedges, not measurements.
             const fit = cap ? assessModel(m.webllmId, cap, hasFailedBefore(m.webllmId)) : null
