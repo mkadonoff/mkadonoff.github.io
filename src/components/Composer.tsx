@@ -37,7 +37,7 @@ export function Composer({ disabled, onSend, onStop, locationSharing }: Props) {
   }
 
   return (
-    <div className="border-t border-white/10 bg-neutral-950/80 p-4">
+    <div className="shrink-0 border-t border-white/10 bg-neutral-950/80 p-4">
       <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 focus-within:border-amber-500/50">
         <textarea
           ref={textareaRef}

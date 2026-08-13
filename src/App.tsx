@@ -17,7 +17,7 @@ import { EngineBanner } from './components/EngineBanner'
 import { HeartRatePanel } from './components/HeartRatePanel'
 import { SystemPromptPanel } from './components/SystemPromptPanel'
 import { ToolbarButton } from './components/ToolbarButton'
-import { HeartIcon, InfoIcon, LocationIcon, MenuIcon } from './components/icons'
+import { HeartIcon, InfoIcon, LocationIcon, MenuIcon, PlusIcon } from './components/icons'
 
 function makeId() {
   return Math.random().toString(36).slice(2, 10)
@@ -246,8 +246,11 @@ export default function App() {
     }
   }
 
+  // h-dvh rather than h-screen: on iOS Safari 100vh is the *large* viewport height, which assumes
+  // the URL bar is hidden. That makes the shell taller than the visible area, so the page itself
+  // scrolls and the header drifts off screen. dvh tracks the visible viewport, keyboard included.
   return (
-    <div className="flex h-screen bg-neutral-950 text-neutral-100">
+    <div className="flex h-dvh bg-neutral-950 text-neutral-100">
       <Sidebar
         conversations={conversations}
         activeId={activeId}
@@ -266,13 +269,24 @@ export default function App() {
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+        <header className="flex shrink-0 items-center gap-2 border-b border-white/10 px-3 py-3">
           <button
             onClick={() => setSidebarOpen((o) => !o)}
-            className="rounded-lg p-1.5 text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
+            aria-label="Toggle sidebar"
+            className="shrink-0 rounded-lg p-1.5 text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
           >
             <MenuIcon className="h-4.5 w-4.5" />
           </button>
+          {/* Starting a chat otherwise means opening the sidebar first, which on mobile covers
+              the screen. Keep it one tap away and always visible. */}
+          <ToolbarButton
+            icon={PlusIcon}
+            title="New chat"
+            onClick={() => {
+              createConversation()
+              if (isMobile()) setSidebarOpen(false)
+            }}
+          />
           <ModelPicker
             modelId={active?.modelId ?? DEFAULT_MODEL_ID}
             onChange={(modelId) => {

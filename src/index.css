@@ -9,4 +9,8 @@ body,
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+  /* The shell sizes itself to the viewport, so any page-level scroll is a layout bug rather than
+     content. Blocking it also stops iOS rubber-banding from dragging the header out of view. */
+  overflow: hidden;
+  overscroll-behavior: none;
 }

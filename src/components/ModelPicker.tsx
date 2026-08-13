@@ -60,17 +60,21 @@ export function ModelPicker({ modelId, onChange }: Props) {
   }, [])
 
   return (
-    <div className="relative" ref={ref}>
+    // min-w-0 so the trigger can shrink instead of pushing the header wide; real model names like
+    // "Qwen2.5 Coder 0.5B Instruct" are long enough to overflow a phone header otherwise.
+    <div className="relative min-w-0 flex-1" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-neutral-200 hover:bg-white/10 transition-colors"
+        className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-neutral-200 hover:bg-white/10 transition-colors"
       >
-        <span className="font-medium">{active.name}</span>
-        <ChevronDownIcon className={`h-3.5 w-3.5 text-neutral-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="truncate font-medium">{active.name}</span>
+        <ChevronDownIcon
+          className={`h-3.5 w-3.5 shrink-0 text-neutral-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        />
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-2 max-h-[60vh] w-72 overflow-y-auto rounded-xl border border-white/10 bg-neutral-900 p-1.5 shadow-2xl shadow-black/50">
+        <div className="absolute z-20 mt-2 max-h-[60dvh] w-72 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-xl border border-white/10 bg-neutral-900 p-1.5 shadow-2xl shadow-black/50">
           {MODELS.map((m) => {
             // Every model stays selectable — these signals are hedges, not measurements.
             const fit = cap ? assessModel(m.webllmId, cap, hasFailedBefore(m.webllmId)) : null
