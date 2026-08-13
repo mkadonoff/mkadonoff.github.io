@@ -3,11 +3,14 @@ const STORAGE_KEY = 'haven.locationSharing.v1'
 let cachedLine: Promise<string | null> | null = null
 let resolvedLine: string | null = null
 
+// Defaults to on: an unset key means the user hasn't chosen, and the intended behaviour
+// is sharing. Once they toggle it, the stored value wins in both directions.
 export function isLocationSharingEnabled(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'true'
+    const raw = localStorage.getItem(STORAGE_KEY)
+    return raw === null ? true : raw === 'true'
   } catch {
-    return false
+    return true
   }
 }
 

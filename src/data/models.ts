@@ -39,4 +39,6 @@ export const MODELS: ModelOption[] = [
   },
 ]
 
-export const DEFAULT_MODEL_ID = MODELS[0].id
+// Smallest model (~0.9 GB) — the only one that reliably fits in a mobile Safari tab,
+// so it's the safe default even though the picker lists the larger models first.
+export const DEFAULT_MODEL_ID = 'driftwood-fast'
