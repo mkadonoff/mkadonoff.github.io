@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { Conversation } from '../types'
 import { PlusIcon, ShieldIcon, TrashIcon } from './icons'
 
@@ -7,11 +8,52 @@ interface Props {
   onSelect: (id: string) => void
   onNew: () => void
   onDelete: (id: string) => void
+  onDeleteAll: () => void
   open: boolean
   onClose: () => void
 }
 
-export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, open, onClose }: Props) {
+/** One armed target at a time, so a chat delete and clear-all can't both be pending. */
+type Pending = { kind: 'chat'; id: string } | { kind: 'all' } | null
+
+const CONFIRM_TIMEOUT_MS = 4000
+
+export function Sidebar({
+  conversations,
+  activeId,
+  onSelect,
+  onNew,
+  onDelete,
+  onDeleteAll,
+  open,
+  onClose,
+}: Props) {
+  const [pending, setPending] = useState<Pending>(null)
+
+  // Disarm on its own after a moment, so a stray tap never leaves a delete primed.
+  useEffect(() => {
+    if (!pending) return
+    const t = setTimeout(() => setPending(null), CONFIRM_TIMEOUT_MS)
+    return () => clearTimeout(t)
+  }, [pending])
+
+  // A reopened sidebar should never still be armed from last time.
+  useEffect(() => {
+    if (!open) setPending(null)
+  }, [open])
+
+  const isPendingChat = (id: string) => pending?.kind === 'chat' && pending.id === id
+
+  function handleDeleteClick(e: React.MouseEvent, id: string) {
+    e.stopPropagation() // otherwise arming also selects the chat
+    if (isPendingChat(id)) {
+      onDelete(id)
+      setPending(null)
+    } else {
+      setPending({ kind: 'chat', id })
+    }
+  }
+
   return (
     <>
       {open && (
@@ -59,19 +101,45 @@ export function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, op
               >
                 <span className="truncate">{c.title}</span>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDelete(c.id)
-                  }}
-                  className="ml-2 shrink-0 text-neutral-600 opacity-0 hover:text-red-400 group-hover:opacity-100"
+                  type="button"
+                  onClick={(e) => handleDeleteClick(e, c.id)}
+                  aria-label={isPendingChat(c.id) ? `Confirm deleting ${c.title}` : `Delete ${c.title}`}
+                  className={`-mr-1.5 ml-2 flex h-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                    isPendingChat(c.id)
+                      ? 'w-auto px-2 text-[11px] font-medium text-red-400'
+                      : 'w-9 text-neutral-500 hover:bg-white/5 hover:text-red-400'
+                  }`}
                 >
-                  <TrashIcon className="h-3.5 w-3.5" />
+                  {isPendingChat(c.id) ? 'Delete?' : <TrashIcon className="h-3.5 w-3.5" />}
                 </button>
               </div>
             ))}
           </div>
 
           <div className="border-t border-white/10 px-4 py-3">
+            {conversations.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (pending?.kind === 'all') {
+                    onDeleteAll()
+                    setPending(null)
+                  } else {
+                    setPending({ kind: 'all' })
+                  }
+                }}
+                className={`mb-2 -ml-1 flex items-center gap-1.5 rounded-lg px-1 py-1 text-[11px] transition-colors ${
+                  pending?.kind === 'all'
+                    ? 'font-medium text-red-400'
+                    : 'text-neutral-500 hover:text-red-400'
+                }`}
+              >
+                <TrashIcon className="h-3 w-3" />
+                {pending?.kind === 'all'
+                  ? `Delete ${conversations.length === 1 ? 'this chat' : `all ${conversations.length} chats`}?`
+                  : 'Clear all chats'}
+              </button>
+            )}
             <p className="flex items-center gap-1.5 text-[11px] text-neutral-600">
               <ShieldIcon className="h-3 w-3" />
               Stored only on this device

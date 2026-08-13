@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Conversation, EngineState, Message } from './types'
 import { DEFAULT_MODEL_ID, MODELS } from './data/models'
-import { loadConversations, saveConversations } from './lib/storage'
+import { clearConversations, loadConversations, saveConversations } from './lib/storage'
 import { toChatHistory, streamModelReply } from './lib/respond'
 import { getEngine, interruptGeneration, isWebGPUSupported } from './lib/engine'
 import { getLocationLine, isLocationSharingEnabled, setLocationSharingEnabled } from './lib/location'
@@ -86,8 +86,21 @@ export default function App() {
   }
 
   function deleteConversation(id: string) {
-    setConversations((prev) => prev.filter((c) => c.id !== id))
-    if (activeId === id) setActiveId(null)
+    const index = conversations.findIndex((c) => c.id === id)
+    const remaining = conversations.filter((c) => c.id !== id)
+    setConversations(remaining)
+    // Land on whichever chat took its place rather than dropping to the empty state.
+    if (activeId === id) {
+      setActiveId(remaining.length > 0 ? remaining[Math.min(index, remaining.length - 1)].id : null)
+    }
+  }
+
+  function deleteAllConversations() {
+    // The save effect immediately writes "[]" back over the removed key — harmless, but it's why
+    // the storage entry reappears empty rather than staying absent.
+    clearConversations()
+    setConversations([])
+    setActiveId(null)
   }
 
   function toggleLocationSharing() {
@@ -247,6 +260,7 @@ export default function App() {
           if (isMobile()) setSidebarOpen(false)
         }}
         onDelete={deleteConversation}
+        onDeleteAll={deleteAllConversations}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
