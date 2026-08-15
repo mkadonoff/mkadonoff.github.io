@@ -99,9 +99,13 @@ Run `npx tsc -b && npx oxlint && npm run build`, then:
 Route inference to Venice (`https://api.venice.ai/api/v1`, OpenAI-compatible) with the local model
 as the on-device "digital twin" holding raw sensor data, and the cloud model as the reasoning layer.
 
-**Unresolved and blocking:** whether Venice sends CORS headers permitting browser calls from
-`https://mkadonoff.github.io`. If it does not, a static site cannot call it at all and the phase
-requires a proxy backend — a materially different project. Venice's own docs say the API key should
-not be exposed in client-side code, which is not encouraging. Verify from a real browser before
-writing any code. Any key must be user-supplied and stored locally; never commit one — this repo and
-its bundles are public.
+**CORS verified (2026-08-15):** a direct in-browser `fetch` to `https://api.venice.ai/api/v1/models`
+reached the server and returned a normal response (not a network-level CORS failure), confirming
+Venice permits direct browser calls — no proxy backend required for this phase. `/models` itself
+appears to be unauthenticated (returned full model + pricing data with no key), but chat completions
+will still need a user-supplied key. Venice's own docs say the API key should not be exposed in
+client-side code, which is still worth keeping in mind for how the key is handled — but it does not
+block the architecture. Any key must be user-supplied and stored locally; never commit one — this
+repo and its bundles are public.
+
+Implementation not yet started.
