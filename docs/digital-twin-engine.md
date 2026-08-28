@@ -236,12 +236,10 @@ support boundaries and should be answered with Partner Center, not guessed.
 
 ## 7. Phasing
 
-**Phase 0 — Static twin console (this repository).** No Azure, no cost, no auth. A React + Vite +
-TypeScript app on GitHub Pages, matching the toolchain already here. Hex axial coordinate math, the
-132-pod campus rendered in Babylon.js, a fixture graph in JSON, and a simulated customer pod
-traversal with a scrub bar. The goal is to prove the geometry is legible and the metaphor is useful
-*before* provisioning anything. If the tower does not make the business more understandable to
-RPG's leadership team on a laptop, no amount of Azure will save it. This is a genuine kill gate.
+**Phase 0 — Static twin console, on real data (this repository).** No Azure, no cost, no auth. A
+React + Vite + TypeScript app on GitHub Pages, matching the toolchain already here: hex axial
+coordinate maths, the 132-pod campus in Babylon.js, and a scrubbable 90-day replay. See §7.1 for the
+gate this phase exists to run.
 
 **Phase 1 — One tower, real data, read-only.** DTDL models, an ADT instance, the Dataverse schema,
 and the Finance/Ops tower populated from live Dynamics data. No writeback. The measure of success is
@@ -261,11 +259,66 @@ where the engine stops being an ops tool and becomes how RPG runs.
 **Phase 5 — Marketplace.** PCF/custom-page repackaging, license metadata, Bicep for the Azure side,
 Partner Center certification.
 
+### 7.1 Phase 0 must not run on fixtures
+
+Invented pods make leadership evaluate the aesthetics, and the gate then measures nothing. Phase 0
+loads a **one-time export**: a CSV out of Dynamics covering the last 90 days of opportunities,
+orders and work orders with their stage-change timestamps, hand-mapped to seats and baked into
+static JSON. That is not an integration — it is a spreadsheet someone emails you — and it costs
+roughly a day more than fixtures. It is the difference between showing a concept and showing last
+quarter as a building.
+
+Minimum columns: record id, record type, line of business, current stage, *every* stage-change
+timestamp, owning user, value. Everything else is optional. If the export cannot produce stage-change
+timestamps, that discovery is itself worth the phase — it is the same finding as the stage-hygiene
+risk in §8, arriving three months early.
+
+### 7.2 What the tower shows that a report does not
+
+- **Dwell encoded in the same object as stage.** The funnel says eleven orders are in Procurement.
+  The tower shows that four arrived this week and one has sat for 41 days. The report requires you to
+  already suspect the 41-day order in order to go and find it.
+- **Seats and work in one picture.** In EOS the Accountability Chart is a separate slide from the
+  Scorecard. Here they are the same object: a seat with fourteen customer pods docked and one person
+  in it needs no utilisation calculation, and a vacant L4 with work piling up beneath it reads as a
+  hole in the building.
+- **Escalation that is systematic rather than incidental.** Scrub the ninety days and watch the lift.
+  If every construction-technology order climbs to L4 at commissioning and no office-equipment order
+  ever does, that is a process defect to point at rather than argue about.
+- **Handoff leakage at the skybridges.** Count what enters the Marketing→Sales bridge against what
+  lands. That number is a perennial issues-list argument currently settled by anecdote.
+
+A report gives a number per period. The scrub gives the motion between periods, which is the one
+thing reports cannot do.
+
+### 7.3 How the gate is actually run
+
+A demo is not a gate. Failure has to be possible, and defined before anyone sees the tower.
+
+**The exercise.** Give each member of the leadership team the same five questions they would
+normally answer from reports — *which deal is most at risk and why; where is the worst bottleneck;
+who is over capacity; what belongs on Monday's L10; where did we lose the most between marketing and
+sales* — and have them answer using only the tower, with nobody driving for them.
+
+**Pass.** They answer faster than they do today, or the tower surfaces something they did not already
+know. The strongest signal is that they stop looking at it and start operating it: "can I filter by
+line of business?" is a pass, not a feature request.
+
+**Fail.** They navigate by the flat list, so the geometry is adding nothing. Or they cannot find
+anything without someone at the keyboard, so it is not legible. Or everything they point at is
+something they already knew, so it is a prettier report.
+
+**The second half is time, not the meeting.** Leave it up for two weeks, then ask each of them
+directly whether they opened it unprompted, and what for. A static GitHub Pages site cannot
+instrument that without a backend, so it is a plain question put to five or six people. Nobody
+opening it unprompted is the clearest fail available — and it is worth two to three weeks to learn
+that, rather than learning it after Phase 2.
+
 ## 8. Risks
 
 | Risk | Mitigation |
 | --- | --- |
-| **The tower becomes a demo toy.** 3D org visualisations are notorious for impressing once and never being opened again. | Every pod must be clickable into a real action, and every view must have a flat list equivalent. The geometry may never be the *only* way to do a job. Phase 0 exists to test this before spend. |
+| **The tower becomes a demo toy.** 3D org visualisations are notorious for impressing once and never being opened again. | Every pod must be clickable into a real action, and every view must have a flat list equivalent. The geometry may never be the *only* way to do a job. The §7.3 gate — real data, defined failure conditions, a two-week unprompted-use check — exists to catch this before any spend. |
 | Dual source of truth between ADT and Dynamics | Dataverse is authoritative; ADT is rebuildable. Stated in §5.1 and enforced by making all writes go to Dataverse first. |
 | AI seats launder accountability | `accountableOwner` non-null on every agent pod, enforced in schema. |
 | Stage hygiene in Dynamics is poor, making all cycle-time output fictional | Audit before Phase 1. If hygiene is bad, fixing it *is* Phase 1. |
@@ -274,8 +327,11 @@ Partner Center certification.
 
 ## 9. What to decide before Phase 1
 
-1. Does the Phase 0 prototype actually help leadership see the business? (Kill gate.)
-2. Is Dynamics stage data clean enough to compute dwell time honestly?
-3. Confirm ADT + ADX running cost at RPG's volume against the value of the spatial layer.
-4. Which three seats become the first AI pods, and who owns each of them by name.
-5. Marketplace: single Dataverse offer with bundled Azure deployment, or two listings?
+1. Run the Phase 0 gate exactly as specified in §7.3, and treat a fail as a fail. It is the only
+   point at which this project can be killed cheaply.
+2. Who produces the 90-day Dynamics export, and does it carry stage-change timestamps at all? This
+   blocks Phase 0 and answers the stage-hygiene question in one go.
+3. Is that stage data clean enough to compute dwell time honestly?
+4. Confirm ADT + ADX running cost at RPG's volume against the value of the spatial layer.
+5. Which three seats become the first AI pods, and who owns each of them by name.
+6. Marketplace: single Dataverse offer with bundled Azure deployment, or two listings?
