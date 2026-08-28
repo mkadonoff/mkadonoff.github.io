@@ -220,6 +220,10 @@ architectural and must be decided now, not retrofitted: build the console as a *
 in a custom page inside a model-driven app**. The 3D canvas keeps working exactly as designed, and
 it becomes a component the licensing metadata can actually see.
 
+Because Phase 0 now connects directly to Dataverse, this decision is taken at Phase 0 rather than
+here — the PCF shape is also the cheapest way to get a live connection at all (§7.1). By the time
+this section applies, the packaging work is mostly already done.
+
 The shape of the offer:
 
 - **Dynamics 365 apps on Dataverse and Power Apps** offer in Partner Center, carrying the managed
@@ -236,14 +240,17 @@ support boundaries and should be answered with Partner Center, not guessed.
 
 ## 7. Phasing
 
-**Phase 0 — Static twin console, on real data (this repository).** No Azure, no cost, no auth. A
-React + Vite + TypeScript app on GitHub Pages, matching the toolchain already here: hex axial
-coordinate maths, the 132-pod campus in Babylon.js, and a scrubbable 90-day replay. See §7.1 for the
-gate this phase exists to run.
+**Phase 0 — Live twin console (kill gate).** No Azure. A PCF control in a model-driven app in a
+Dataverse development environment, reading live through `context.webAPI`: hex axial coordinate
+maths, the 132-pod campus in Babylon.js, and a scrubbable 90-day replay built from audit history.
+Still TypeScript and npm, so it can live in this repository — but it is a `pac pcf init` project, not
+a Vite site, and it does not deploy to GitHub Pages. See §7.1–§7.4.
 
-**Phase 1 — One tower, real data, read-only.** DTDL models, an ADT instance, the Dataverse schema,
-and the Finance/Ops tower populated from live Dynamics data. No writeback. The measure of success is
-that operations recognises their own week in it.
+**Phase 1 — The graph substrate, if §7.5 says you need it.** DTDL models, an ADT instance, the
+Dataverse schema, and the Dataverse → Event Grid → ADT projection, with the console switched from
+direct queries to the twin graph. Phase 0 already delivers real data read-only, so this phase is
+about structure and scale — and it should be deferred or dropped outright if none of the four
+conditions in §7.5 hold.
 
 **Phase 2 — Movement.** Durable Functions traversal engine, dwell SLAs, escalation, Teams Adaptive
 Card approvals writing back to Dataverse. Sales and Marketing towers added. The campus becomes a
@@ -259,21 +266,65 @@ where the engine stops being an ops tool and becomes how RPG runs.
 **Phase 5 — Marketplace.** PCF/custom-page repackaging, license metadata, Bicep for the Azure side,
 Partner Center certification.
 
-### 7.1 Phase 0 must not run on fixtures
+### 7.1 Phase 0 connects directly to Dataverse
 
-Invented pods make leadership evaluate the aesthetics, and the gate then measures nothing. Phase 0
-loads a **one-time export**: a CSV out of Dynamics covering the last 90 days of opportunities,
-orders and work orders with their stage-change timestamps, hand-mapped to seats and baked into
-static JSON. That is not an integration — it is a spreadsheet someone emails you — and it costs
-roughly a day more than fixtures. It is the difference between showing a concept and showing last
-quarter as a building.
+No export, no fixtures. Phase 0 reads live, which is better for the gate than a snapshot would have
+been: a frozen extract is stale by the second week, and the two-week unprompted-use check in §7.4 is
+precisely the half a stale page cannot pass.
 
-Minimum columns: record id, record type, line of business, current stage, *every* stage-change
-timestamp, owning user, value. Everything else is optional. If the export cannot produce stage-change
-timestamps, that discovery is itself worth the phase — it is the same finding as the stage-hygiene
-risk in §8, arriving three months early.
+It also leaks less, which is the opposite of most people's intuition. A CSV extract is one person's
+copy of everything they can see, shared as a file that stops honouring row-level security the moment
+it is saved. A live connection runs as the signed-in user, shows each viewer exactly what their own
+security role permits, and puts nothing on disk.
 
-### 7.2 What the tower shows that a report does not
+**Take the PCF decision now, at Phase 0, not at Phase 5.** §6 establishes that the console must end
+up as a PCF control in a custom page inside a model-driven app, because that is the only shape
+Dataverse ISV license management can meter. Building it that way from the first commit also happens
+to be the cheapest way to connect directly:
+
+| | PCF in a model-driven app **(recommended)** | Static SPA on GitHub Pages |
+| --- | --- | --- |
+| Auth code | None — the user is already signed in | MSAL.js, Entra app registration, SPA redirect URI |
+| Consent | None | `Dynamics CRM user_impersonation`, usually needs an admin |
+| CORS | Not applicable — same origin | Supported by Dataverse for SPAs, but one more thing to debug |
+| Data API | `context.webAPI` | Web API over `fetch` with a bearer token |
+| Governance | Stays inside the tenant | A public `github.io` origin registered against production Dataverse |
+| Rework at Phase 5 | None — already the shipping shape | Rebuild the shell |
+
+The static-SPA route is genuinely viable; Dataverse does support CORS for MSAL-authenticated SPAs.
+Keep it as the fallback if a Dataverse development environment cannot be had within a week. It buys
+a faster inner loop and pays for it with an app registration, an admin-consent conversation, a
+security review of a public origin pointed at production data, and a rebuild at Phase 5.
+
+The cost of the recommended route is a slower inner loop: the PCF test harness mocks
+`context.webAPI`, so seeing real data means pushing to the development environment. Budget for that
+instead of Vite hot reload.
+
+Phase 0 is **read-only by construction** — it issues GET and nothing else. Writeback is Phase 2.
+
+### 7.2 Dwell time still depends on auditing, and that is now a day-one query
+
+Connecting directly does not conjure stage history. Dataverse holds three things that resemble it,
+and only one carries timestamps:
+
+- **Audit** — the only general source of *when* a stage changed, via `RetrieveRecordChangeHistory` or
+  a query against the `audit` table. Retention defaults to indefinite, though many tenants have since
+  configured a shorter window.
+- **`traversedpath`** on business-process-flow records — the ordered list of stage GUIDs a record
+  passed through, with no times attached. Good for the path, useless for dwell.
+- **Explicit date columns** — actual close date, work-order dates, invoice dates. Precise where they
+  exist, and they cover only a handful of transitions.
+
+So the first thing Phase 0 does, before any geometry, is one query: is auditing enabled on the stage
+columns of Opportunity, Order and Work Order, and does retained history cover ninety days?
+
+**Auditing cannot be backfilled.** If it was off, the honest answer is that dwell time is unavailable
+until ninety days after someone turns it on — and turning it on this week then becomes the single
+highest-value action in this document, worth doing whether or not Pod Tower is ever built. This is
+the same finding as the stage-hygiene risk in §8; connecting directly does not remove it, it just
+means you learn it on day one from a query instead of on week three from a spreadsheet.
+
+### 7.3 What the tower shows that a report does not
 
 - **Dwell encoded in the same object as stage.** The funnel says eleven orders are in Procurement.
   The tower shows that four arrived this week and one has sat for 41 days. The report requires you to
@@ -291,7 +342,7 @@ risk in §8, arriving three months early.
 A report gives a number per period. The scrub gives the motion between periods, which is the one
 thing reports cannot do.
 
-### 7.3 How the gate is actually run
+### 7.4 How the gate is actually run
 
 A demo is not a gate. Failure has to be possible, and defined before anyone sees the tower.
 
@@ -309,29 +360,47 @@ anything without someone at the keyboard, so it is not legible. Or everything th
 something they already knew, so it is a prettier report.
 
 **The second half is time, not the meeting.** Leave it up for two weeks, then ask each of them
-directly whether they opened it unprompted, and what for. A static GitHub Pages site cannot
-instrument that without a backend, so it is a plain question put to five or six people. Nobody
+directly whether they opened it unprompted, and what for. Model-driven app usage telemetry could
+answer this, but a plain question put to five or six people is faster and less arguable. Nobody
 opening it unprompted is the clearest fail available — and it is worth two to three weeks to learn
 that, rather than learning it after Phase 2.
+
+### 7.5 If the console reads Dataverse directly, what is ADT for?
+
+A fair question, and Phase 0 sharpens it rather than dodging it. Direct queries are entirely adequate
+for a read-only view of a few hundred live records. Azure Digital Twins earns its cost only if at
+least one of these turns out to be true:
+
+1. The adjacency and port graph needs to be **queryable structure**, rather than something the client
+   recomputes from axial coordinates on every load.
+2. Many viewers need **real-time push**, rather than each browser polling Dataverse.
+3. Someone wants **what-if simulation** — moving pods on a copy of the graph without touching
+   production.
+4. Dwell and cycle-time analytics need **temporal history** at a volume Dataverse should not serve.
+
+If Phase 0 passes its gate and none of the four hold, the correct decision is to drop ADT and keep
+the console on Dataverse. That saves an ADT instance and an ADX cluster, and nothing else in this
+plan breaks — which is exactly why §5.1 makes ADT a projection rather than a system of record.
 
 ## 8. Risks
 
 | Risk | Mitigation |
 | --- | --- |
-| **The tower becomes a demo toy.** 3D org visualisations are notorious for impressing once and never being opened again. | Every pod must be clickable into a real action, and every view must have a flat list equivalent. The geometry may never be the *only* way to do a job. The §7.3 gate — real data, defined failure conditions, a two-week unprompted-use check — exists to catch this before any spend. |
+| **The tower becomes a demo toy.** 3D org visualisations are notorious for impressing once and never being opened again. | Every pod must be clickable into a real action, and every view must have a flat list equivalent. The geometry may never be the *only* way to do a job. The §7.4 gate — live data, defined failure conditions, a two-week unprompted-use check — exists to catch this before any spend. |
 | Dual source of truth between ADT and Dynamics | Dataverse is authoritative; ADT is rebuildable. Stated in §5.1 and enforced by making all writes go to Dataverse first. |
 | AI seats launder accountability | `accountableOwner` non-null on every agent pod, enforced in schema. |
-| Stage hygiene in Dynamics is poor, making all cycle-time output fictional | Audit before Phase 1. If hygiene is bad, fixing it *is* Phase 1. |
+| Stage hygiene in Dynamics is poor, making all cycle-time output fictional | Now a day-one query in Phase 0 (§7.2) rather than an audit before Phase 1. Auditing cannot be backfilled, so if it is off, enabling it this week is the finding. |
 | Marketplace licensing cannot meter the console | Resolved by the PCF-in-model-driven-app decision in §6 — but only if taken now. |
 | Six levels of authority may exceed RPG's actual org depth | Levels may be sparsely occupied; an empty L4 is legal and renders as an open seat, which is itself useful information for the Accountability Chart. |
 
 ## 9. What to decide before Phase 1
 
-1. Run the Phase 0 gate exactly as specified in §7.3, and treat a fail as a fail. It is the only
+1. Run the Phase 0 gate exactly as specified in §7.4, and treat a fail as a fail. It is the only
    point at which this project can be killed cheaply.
-2. Who produces the 90-day Dynamics export, and does it carry stage-change timestamps at all? This
-   blocks Phase 0 and answers the stage-hygiene question in one go.
-3. Is that stage data clean enough to compute dwell time honestly?
+2. Is auditing on the stage columns of Opportunity, Order and Work Order, and does retained history
+   reach back ninety days? One query, and it blocks everything downstream (§7.2).
+3. Who provisions the Dataverse development environment, and how quickly? A week or less and Phase 0
+   is a PCF control; longer and it falls back to the static SPA and a rebuild at Phase 5 (§7.1).
 4. Confirm ADT + ADX running cost at RPG's volume against the value of the spatial layer.
 5. Which three seats become the first AI pods, and who owns each of them by name.
 6. Marketplace: single Dataverse offer with bundled Azure deployment, or two listings?
