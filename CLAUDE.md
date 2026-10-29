@@ -150,4 +150,5 @@ Run `npx tsc -b && npx oxlint && npm run build`, then:
   Launch with `--use-fake-ui-for-media-stream` so the camera request doesn't hang. Seed storage only
   after the page settles — the app's first save overwrites anything written before it runs.
 - Not yet built: private coach chats that can read the session, "pass to the mediator", per-person
-  sensor sharing, protecting private chats on a shared phone, and the witness/apprentice role.
+  sensor sharing, protecting private chats on a shared phone, and the human mediator role (a third
+  person, distinct from the AI mediator).
