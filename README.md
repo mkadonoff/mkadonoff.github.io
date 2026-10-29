@@ -6,14 +6,15 @@ Venice.ai) but not affiliated with or copying any of them.
 
 Haven runs real open-weight models **in your browser** via
 [WebLLM](https://github.com/mlc-ai/web-llm) and WebGPU — there is no backend
-and no API key. The first message with a given model downloads its weights
-and caches them; every message and reply after that is generated on-device.
-Chat history persists to `localStorage` only.
+and no API key needed. The first message with a given model downloads its
+weights and caches them; every message and reply after that is generated
+on-device. Chat history persists to `localStorage` only. Optionally, you can
+add your own Venice.ai API key to use larger cloud models in chats you choose.
 
 ## What leaves your browser
 
-Inference is local, but the app is not hermetic. Exactly two things reach the
-network, and nothing else does:
+Inference is local by default, but the app is not hermetic. Exactly three
+things can reach the network, and nothing else does:
 
 1. **Model weights**, on first use of each model — from HuggingFace, plus
    compiled GPU kernels from GitHub. Cached afterwards, so a model you've
@@ -21,8 +22,12 @@ network, and nothing else does:
 2. **Your coordinates**, *only* if you turn location sharing on — sent to
    BigDataCloud's reverse-geocoding endpoint to resolve a place name
    (`reverseGeocode`, `src/lib/location.ts`). Off by default.
+3. **Your messages**, *only* in chats where you pick a Venice.ai cloud model —
+   sent with the system prompt (date, and any location or heart rate you
+   share) to Venice using your own API key. Off until you save a key.
 
-Your messages and the model's replies are never transmitted anywhere.
+In on-device chats, your messages and the model's replies are never
+transmitted anywhere.
 
 ## Requirements
 
@@ -36,6 +41,9 @@ Your messages and the model's replies are never transmitted anywhere.
 
 ## Features
 
+- Optional **Venice.ai cloud models** alongside the on-device ones: save your
+  own API key (model picker → Venice → Add key) and Venice's text models appear
+  in the picker. Each reply is labelled on-device or Venice
 - Sidebar with conversation history: create, switch, delete (tap the trash
   icon, then tap again to confirm), and clear all
 - Nine models from ~0.4 GB to ~2.9 GB, ordered smallest first, each showing

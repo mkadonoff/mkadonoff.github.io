@@ -1,4 +1,5 @@
 import type { ModelOption } from '../types'
+import { isVeniceModelId, veniceModelName } from '../lib/venice'
 
 // Ordered smallest first, so the options most likely to load on a phone sit at the top.
 // Every entry is a q4f16_1 build with a 4096-token context window.
@@ -95,4 +96,11 @@ export const LEGACY_MODEL_IDS: Record<string, string> = {
   'lighthouse-reasoning': 'ministral-3b',
   'driftwood-fast': 'qwen25-05b',
   'tidepool-code': 'qwen25-coder-3b',
+}
+
+/** Display name for any stored model id, on-device or Venice. Null only for an unknown local id. */
+export function modelLabel(modelId: string | undefined): string | null {
+  if (!modelId) return null
+  if (isVeniceModelId(modelId)) return veniceModelName(modelId)
+  return MODELS.find((m) => m.id === modelId)?.name ?? null
 }

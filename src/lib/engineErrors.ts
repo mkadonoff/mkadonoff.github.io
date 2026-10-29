@@ -1,5 +1,6 @@
 import { IntegrityError } from '@mlc-ai/web-llm'
 import type { EngineError } from '../types'
+import { VeniceError } from './venice'
 
 /**
  * WebLLM declares ~60 typed error classes but only re-exports IntegrityError from its package
@@ -49,6 +50,43 @@ const BY_NAME: Record<string, { title: string; hint: string | null }> = {
   },
 }
 
+const VENICE_BY_STATUS: Record<number, { title: string; hint: string | null }> = {
+  0: {
+    title: "Couldn't reach Venice.",
+    hint: 'Check your internet connection. On-device models keep working offline once downloaded.',
+  },
+  401: {
+    title: 'Venice rejected your API key.',
+    hint: 'Check the key under Venice in the model picker, or create a new one at venice.ai/settings/api.',
+  },
+  402: {
+    title: 'Your Venice account is out of credit.',
+    hint: 'Add credit on venice.ai, or switch to an on-device model.',
+  },
+  403: {
+    title: "Your Venice key isn't allowed to use this model.",
+    hint: 'Pick a different Venice model, or an on-device one.',
+  },
+  404: {
+    title: "Venice doesn't offer this model any more.",
+    hint: 'Pick a different model from the picker.',
+  },
+  429: {
+    title: 'Venice is rate-limiting your key.',
+    hint: 'Wait a moment and try again.',
+  },
+}
+
+function describeVeniceError(err: VeniceError, detail: string | null): EngineError {
+  if (err.status === null) {
+    return { title: 'Venice needs an API key.', hint: 'Add one under Venice in the model picker.', detail }
+  }
+  const mapped = VENICE_BY_STATUS[err.status]
+  if (mapped) return { ...mapped, detail }
+  if (err.status >= 500) return { title: 'Venice had a server problem.', hint: 'Try again shortly.', detail }
+  return { title: "Venice couldn't answer that.", hint: null, detail }
+}
+
 function messageOf(err: unknown): string | null {
   if (err instanceof Error) return err.message || null
   if (typeof err === 'string') return err || null
@@ -70,6 +108,8 @@ export function describeEngineError(err: unknown): EngineError {
       detail,
     }
   }
+
+  if (err instanceof VeniceError) return describeVeniceError(err, detail)
 
   if (err instanceof Error) {
     const mapped = BY_NAME[err.name]

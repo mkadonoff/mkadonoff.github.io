@@ -6,9 +6,11 @@ interface Props {
   onSend: (text: string) => void
   onStop?: () => void
   locationSharing: boolean
+  /** Set when this chat's replies come from Venice — the disclosure must say so. */
+  cloudModelName: string | null
 }
 
-export function Composer({ disabled, onSend, onStop, locationSharing }: Props) {
+export function Composer({ disabled, onSend, onStop, locationSharing, cloudModelName }: Props) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -70,8 +72,15 @@ export function Composer({ disabled, onSend, onStop, locationSharing }: Props) {
         )}
       </div>
       <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-neutral-600">
-        Runs on-device via WebGPU — nothing you type or generate leaves your browser. First reply from a model
-        downloads and caches it; after that it works offline.
+        {cloudModelName ? (
+          <span className="text-amber-400/80">
+            This chat uses {cloudModelName} on Venice.ai: your messages and the system prompt (date, plus any
+            location or heart rate you share) are sent to Venice to generate replies. Your API key is stored
+            only in this browser. Pick an on-device model to keep everything local.
+          </span>
+        ) : (
+          'Runs on-device via WebGPU — nothing you type or generate leaves your browser. First reply from a model downloads and caches it; after that it works offline.'
+        )}
         {locationSharing
           ? ' Location sharing is on: your device sends coordinates to a geocoding lookup to resolve a place name for the model.'
           : ''}

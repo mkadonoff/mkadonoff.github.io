@@ -18,8 +18,12 @@ npx oxlint             # lint
 ## Architecture
 
 - `src/App.tsx` — state, the send pipeline, header/toolbar.
-- `src/lib/` — engine and sensing modules: `engine`, `respond`, `storage`, `capability`,
+- `src/lib/` — engine and sensing modules: `engine`, `venice`, `respond`, `storage`, `capability`,
   `engineErrors`, `location`, `geofence`, `heartRate`.
+
+Replies come from one of two providers, chosen per conversation by its `modelId`: an on-device
+WebLLM model (the default) or a Venice.ai cloud model (ids prefixed `venice:`, `src/lib/venice.ts`).
+Everything else — history, the system-prompt lines, the geofence marker — is shared.
 - `src/components/` — UI. `src/data/models.ts` — the model roster.
 
 Device context reaches the model as **system-prompt lines**, assembled by `buildSystemPrompt` in
@@ -72,8 +76,10 @@ because of it.
 
 The UI claims conversations stay on-device, and that is the point of the app. Anything that leaves
 the browser must be **opt-in, off by default, and disclosed in the UI at the moment it applies**.
-Current exceptions: model weight downloads (unavoidable, first use), and reverse geocoding via
-BigDataCloud when location sharing is on (`reverseGeocode`, `src/lib/location.ts`).
+Current exceptions: model weight downloads (unavoidable, first use), reverse geocoding via
+BigDataCloud when location sharing is on (`reverseGeocode`, `src/lib/location.ts`), and chats that use
+a Venice model, which send the messages and full system prompt to Venice. Venice is inert until the
+user saves their own API key — no request reaches Venice before that, not even the model list.
 
 When adding a network path, update the disclosure text in `src/components/Composer.tsx` — do not let
 the stated guarantee drift from what the code does.
@@ -94,14 +100,17 @@ Run `npx tsc -b && npx oxlint && npm run build`, then:
   `localStorage` and mask whether a change persisted), and selectors keyed on text or `aria-label`
   break when a control changes state.
 
-## Next phase (not started)
+## Venice (cloud models)
 
-Route inference to Venice (`https://api.venice.ai/api/v1`, OpenAI-compatible) with the local model
-as the on-device "digital twin" holding raw sensor data, and the cloud model as the reasoning layer.
-
-**Unresolved and blocking:** whether Venice sends CORS headers permitting browser calls from
-`https://mkadonoff.github.io`. If it does not, a static site cannot call it at all and the phase
-requires a proxy backend — a materially different project. Venice's own docs say the API key should
-not be exposed in client-side code, which is not encouraging. Verify from a real browser before
-writing any code. Any key must be user-supplied and stored locally; never commit one — this repo and
-its bundles are public.
+- **CORS is open**: `access-control-allow-origin: *` on both `/models` and the chat-completions
+  preflight, so the static site calls `https://api.venice.ai/api/v1` directly. No proxy.
+- **The key is user-supplied** and stored in `localStorage` (`haven.veniceApiKey.v1`). There is
+  deliberately no URL parameter for it, unlike other opt-ins — a key in a URL leaks into history.
+  Never commit a key; this repo and its bundles are public.
+- Requests send `venice_parameters.include_venice_system_prompt: false`; otherwise Venice prepends
+  its own prompt and the prompt viewer's "exactly what's sent" becomes false.
+- The cloud system prompt must not claim on-device privacy (`CLOUD_SYSTEM_PROMPT` in `respond.ts`).
+- The model list is fetched live and cached, so labels on old replies survive a model being retired
+  upstream (falling back to Venice's raw id).
+- Not yet done: the "digital twin" split, where the local model holds raw sensor data and only a
+  summary goes to the cloud. Today a Venice chat gets the same sensor lines a local chat does.
