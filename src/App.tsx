@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import type { Conversation, EngineState, Message } from './types'
 import { DEFAULT_MODEL_ID, MODELS } from './data/models'
 import { clearConversations, loadConversations, saveConversations } from './lib/storage'
-import { toChatHistory, streamModelReply } from './lib/respond'
-import { getEngine, interruptGeneration, isWebGPUSupported } from './lib/engine'
+import type { InitProgressReport } from '@mlc-ai/web-llm'
+import { toChatHistory } from './lib/respond'
+import { interruptGeneration, isWebGPUSupported } from './lib/engine'
+import { prepareGenerator } from './lib/generate'
 import { getLocationLine, isLocationSharingEnabled, setLocationSharingEnabled } from './lib/location'
 import { buildGeofenceLine, captureGeofenceAnchor, stripGeofenceMarker } from './lib/geofence'
 import { getReading, heartRateLine } from './lib/heartRate'
 import { describeEngineError, engineErrorText } from './lib/engineErrors'
-import { getVeniceKey, isVeniceModelId, streamVeniceReply, veniceModelName, VeniceError } from './lib/venice'
+import { getVeniceKey, isVeniceModelId, veniceModelName } from './lib/venice'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
@@ -17,9 +19,12 @@ import { EmptyState } from './components/EmptyState'
 import { EngineBanner } from './components/EngineBanner'
 import { HeartRatePanel } from './components/HeartRatePanel'
 import { VenicePanel } from './components/VenicePanel'
+import { SessionSheet } from './components/SessionSheet'
+import { SessionBar } from './components/SessionBar'
+import { useSharedSession } from './lib/useSharedSession'
 import { SystemPromptPanel } from './components/SystemPromptPanel'
 import { ToolbarButton } from './components/ToolbarButton'
-import { HeartIcon, InfoIcon, LocationIcon, MenuIcon, PlusIcon } from './components/icons'
+import { HeartIcon, InfoIcon, LocationIcon, MenuIcon, PeopleIcon, PlusIcon } from './components/icons'
 
 function makeId() {
   return Math.random().toString(36).slice(2, 10)
@@ -54,6 +59,16 @@ export default function App() {
   })
   const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Session event handlers run outside render, so they read conversations through a ref.
+  const conversationsRef = useRef(conversations)
+  conversationsRef.current = conversations
+
+  const session = useSharedSession({
+    getConversations: () => conversationsRef.current,
+    setConversations,
+    setActiveId,
+    onEngineProgress: reportEngineProgress,
+  })
 
   useEffect(() => {
     const loaded = loadConversations()
@@ -70,6 +85,8 @@ export default function App() {
   }, [activeId, conversations])
 
   const active = conversations.find((c) => c.id === activeId) ?? null
+  const shared = active?.shared ?? null
+  const sharedConnected = !!shared && session.liveId === active?.id && session.connected
 
   function updateConversation(id: string, updater: (c: Conversation) => Conversation) {
     setConversations((prev) => prev.map((c) => (c.id === id ? updater(c) : c)))
@@ -90,6 +107,7 @@ export default function App() {
   }
 
   function deleteConversation(id: string) {
+    session.forget(id)
     const index = conversations.findIndex((c) => c.id === id)
     const remaining = conversations.filter((c) => c.id !== id)
     setConversations(remaining)
@@ -118,6 +136,10 @@ export default function App() {
     }
   }
 
+  function reportEngineProgress(report: InitProgressReport, webllmId: string) {
+    setEngineState({ status: 'loading', modelId: webllmId, progress: report.progress, progressText: report.text, error: null })
+  }
+
   function stopGenerating() {
     abortRef.current?.abort()
     interruptGeneration()
@@ -125,6 +147,10 @@ export default function App() {
   }
 
   async function sendMessage(text: string) {
+    if (active?.shared) {
+      session.sendText(text)
+      return
+    }
     const conv = active ?? createConversation()
     const cloud = isVeniceModelId(conv.modelId)
     const model = MODELS.find((m) => m.id === conv.modelId) ?? MODELS[0]
@@ -169,31 +195,13 @@ export default function App() {
     abortRef.current = controller
 
     try {
-      let generate: (
-        history: ReturnType<typeof toChatHistory>,
-        onChunk: (soFar: string) => void,
-        signal: AbortSignal,
-      ) => Promise<void>
-
-      if (cloud) {
-        const apiKey = getVeniceKey()
-        if (!apiKey) throw new VeniceError('No Venice API key is saved in this browser.', null)
-        // Clears a leftover on-device error banner, which no longer applies to this chat.
-        setEngineState({ status: 'idle', modelId: null, progress: 0, progressText: '', error: null })
-        generate = (history, onChunk, signal) => streamVeniceReply(conv.modelId, apiKey, history, onChunk, signal)
-      } else {
-        const engine = await getEngine(model.webllmId, (report) => {
-          setEngineState({
-            status: 'loading',
-            modelId: model.webllmId,
-            progress: report.progress,
-            progressText: report.text,
-            error: null,
-          })
-        })
-        setEngineState({ status: 'ready', modelId: model.webllmId, progress: 1, progressText: '', error: null })
-        generate = (history, onChunk, signal) => streamModelReply(engine, history, onChunk, signal)
-      }
+      const generate = await prepareGenerator(conv.modelId, reportEngineProgress)
+      // For Venice this clears a leftover on-device error banner, which no longer applies to this chat.
+      setEngineState(
+        cloud
+          ? { status: 'idle', modelId: null, progress: 0, progressText: '', error: null }
+          : { status: 'ready', modelId: model.webllmId, progress: 1, progressText: '', error: null },
+      )
 
       const locationLine = await getLocationLine()
 
@@ -311,6 +319,9 @@ export default function App() {
               if (isMobile()) setSidebarOpen(false)
             }}
           />
+          {shared ? (
+            <p className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-200">{active?.title}</p>
+          ) : (
           <ModelPicker
             modelId={active?.modelId ?? DEFAULT_MODEL_ID}
             veniceKeySet={veniceKeySet}
@@ -320,14 +331,24 @@ export default function App() {
             }}
             onManageVenice={() => setShowVenice(true)}
           />
+          )}
 
           <div className="ml-auto flex items-center gap-0.5">
+            <ToolbarButton
+              icon={PeopleIcon}
+              active={session.connected}
+              title="Start or join a mediated session with another person"
+              onClick={() => session.setSheet({ step: 'menu' })}
+            />
             <ToolbarButton
               icon={InfoIcon}
               active={showPrompt}
               title={showPrompt ? 'Hide system prompt' : 'View the system prompt sent to the model'}
               onClick={() => setShowPrompt((v) => !v)}
             />
+            {/* Sessions never carry either person's sensor data, so these controls don't apply there. */}
+            {shared ? null : (
+              <>
             <ToolbarButton
               icon={HeartIcon}
               active={showHeartRate || !!getReading()}
@@ -344,8 +365,28 @@ export default function App() {
               }
               onClick={toggleLocationSharing}
             />
+              </>
+            )}
           </div>
         </header>
+
+        {shared && active ? (
+          <SessionBar
+            session={shared}
+            connected={sharedConnected}
+            mediatorBusy={session.mediatorBusy && session.liveId === active.id}
+            onPause={session.pause}
+            onResume={session.resume}
+            onLeave={() => {
+              if (window.confirm(`Leave the session with ${shared.peerName ?? 'the other person'}? This ends it for both of you.`)) {
+                session.leave()
+              }
+            }}
+            onReconnect={() =>
+              shared.role === 'host' ? session.reconnect(active) : session.setSheet({ step: 'join', error: null })
+            }
+          />
+        ) : null}
 
         <EngineBanner state={engineState} />
 
@@ -368,6 +409,7 @@ export default function App() {
                 locationSharing={locationSharing}
                 geofenceActive={!!active?.geofenceAnchor}
                 cloud={isVeniceModelId(active?.modelId)}
+                shared={shared}
                 onClose={() => setShowPrompt(false)}
               />
             ) : null}
@@ -380,20 +422,33 @@ export default function App() {
           ) : (
             <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6">
               {active.messages.map((m) => (
-                <MessageBubble key={m.id} message={m} />
+                <MessageBubble key={m.id} message={m} shared={shared} />
               ))}
             </div>
           )}
         </div>
 
         <Composer
-          disabled={sending}
+          disabled={shared ? !sharedConnected || !!shared.pausedBy || shared.ended : sending}
           onSend={sendMessage}
-          onStop={sending ? stopGenerating : undefined}
+          onStop={sending && !shared ? stopGenerating : undefined}
+          shared={shared}
           locationSharing={locationSharing}
           cloudModelName={active && isVeniceModelId(active.modelId) ? veniceModelName(active.modelId) : null}
         />
       </div>
+
+      <SessionSheet
+        sheet={session.sheet}
+        onClose={session.closeSheet}
+        onStartForm={() => session.setSheet({ step: 'host-form' })}
+        onJoinForm={() => session.setSheet({ step: 'join', error: null })}
+        onHost={(options) => void session.startHosting(options)}
+        onSubmitAnswer={(code) => void session.submitAnswer(code)}
+        onJoin={(code) => void session.joinWithCode(code)}
+        onAccept={session.acceptSetup}
+        onDecline={session.declineSetup}
+      />
     </div>
   )
 }

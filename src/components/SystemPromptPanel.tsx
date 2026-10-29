@@ -1,15 +1,37 @@
 import { peekLocationLine } from '../lib/location'
 import { heartRateLine } from '../lib/heartRate'
 import { buildSystemPrompt } from '../lib/respond'
+import { buildMediatorSystemPrompt } from '../lib/session'
+import type { SharedSession } from '../types'
 
 interface Props {
   locationSharing: boolean
   geofenceActive: boolean
   cloud: boolean
+  shared: SharedSession | null
   onClose: () => void
 }
 
-export function SystemPromptPanel({ locationSharing, geofenceActive, cloud, onClose }: Props) {
+export function SystemPromptPanel({ locationSharing, geofenceActive, cloud, shared, onClose }: Props) {
+  if (shared) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+        <div className="mb-1.5 flex items-center justify-between">
+          <p className="text-[11px] font-medium text-neutral-400">
+            The mediator's system prompt, as both of you agreed to it
+            {shared.cloud ? ' (sent to Venice.ai with the conversation)' : ''}:
+          </p>
+          <button onClick={onClose} className="text-[11px] text-neutral-500 hover:text-neutral-300">
+            Close
+          </button>
+        </div>
+        <pre className="whitespace-pre-wrap text-[11px] leading-relaxed text-neutral-300">
+          {buildMediatorSystemPrompt(shared)}
+        </pre>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-xl border border-white/10 bg-black/40 p-3">
       <div className="mb-1.5 flex items-center justify-between">

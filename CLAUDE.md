@@ -18,13 +18,18 @@ npx oxlint             # lint
 ## Architecture
 
 - `src/App.tsx` — state, the send pipeline, header/toolbar.
-- `src/lib/` — engine and sensing modules: `engine`, `venice`, `respond`, `storage`, `capability`,
-  `engineErrors`, `location`, `geofence`, `heartRate`.
+- `src/lib/` — engine and sensing modules: `engine`, `generate`, `venice`, `respond`, `storage`,
+  `capability`, `engineErrors`, `location`, `geofence`, `heartRate`; sessions: `peer`, `session`,
+  `useSharedSession`.
 - `src/components/` — UI. `src/data/models.ts` — the model roster.
 
 Replies come from one of two providers, chosen per conversation by its `modelId`: an on-device
 WebLLM model (the default) or a Venice.ai cloud model (ids prefixed `venice:`, `src/lib/venice.ts`).
 Everything else — history, the system-prompt lines, the geofence marker — is shared.
+`prepareGenerator` (`src/lib/generate.ts`) turns a model id into a streaming function for either.
+
+A conversation with `shared` set is a **mediated session** instead: two people on their own phones
+plus one AI mediator (see the Sessions section).
 
 Device context reaches the model as **system-prompt lines**, assembled by `buildSystemPrompt` in
 `src/lib/respond.ts`: date/time, location, geofence distance, heart rate. Each is null when its
@@ -77,8 +82,9 @@ because of it.
 The UI claims conversations stay on-device, and that is the point of the app. Anything that leaves
 the browser must be **opt-in, off by default, and disclosed in the UI at the moment it applies**.
 Current exceptions: model weight downloads (unavoidable, first use), reverse geocoding via
-BigDataCloud when location sharing is on (`reverseGeocode`, `src/lib/location.ts`), and chats that use
-a Venice model, which send the messages and full system prompt to Venice. Venice is inert until the
+BigDataCloud when location sharing is on (`reverseGeocode`, `src/lib/location.ts`), chats that use
+a Venice model, which send the messages and full system prompt to Venice, and session pairing, which
+asks public STUN servers (Google, Cloudflare) for each phone's address. Venice is inert until the
 user saves their own API key — no request reaches Venice before that, not even the model list.
 
 When adding a network path, update the disclosure text in `src/components/Composer.tsx` — do not let
@@ -114,3 +120,34 @@ Run `npx tsc -b && npx oxlint && npm run build`, then:
   upstream (falling back to Venice's raw id).
 - Not yet done: the "digital twin" split, where the local model holds raw sensor data and only a
   summary goes to the cloud. Today a Venice chat gets the same sensor lines a local chat does.
+
+## Sessions (two people, one mediator)
+
+- **Direct WebRTC data channel, no server.** The phones swap connection descriptions by hand: the
+  host shows an invitation QR (a `#join=` link, so the iPhone Camera app can open it), the guest's
+  phone shows a reply QR, the host scans it in-app (`jsqr`; Safari has no `BarcodeDetector`). Codes
+  are deflate-compressed SDP (`src/lib/peer.ts`); a busy phone's invitation is about a version-21 QR.
+  Non-trickle ICE with a 4 s gathering cap, STUN only, **no TURN** — reliable on shared Wi-Fi, may
+  fail on mobile data. That trade-off was chosen: sessions are meant to be in person.
+- **The host's phone is the source of truth and runs the mediator**, with the host's model and key.
+  It replays the whole transcript whenever the guest connects, and accepts only `role: 'user'`
+  messages from the guest, stamped with the guest's name — a guest can't forge mediator replies.
+- **Consent before joining.** The guest sees the mediator's exact instructions, the model, and
+  whether it's Venice, and must accept. Rejoining the same `sessionId` skips this only when the
+  instructions and model are unchanged.
+- **Pause:** either person can pause; only the one who paused can resume. Nothing can be sent while
+  paused, and the mediator's in-flight reply is aborted. **Leave** ends the session for both.
+- **The mediator may stay silent** by replying exactly `<<PASS>>` (`PASS_MARKER`, `session.ts`);
+  replies are held back while they could still be a pass, then dropped on both phones.
+- **No sensor data in sessions** — no location, geofence or heart-rate lines, and those toolbar
+  controls are hidden there. Sharing one person's data needs that person's own consent, not built yet.
+- Safari only reveals real local addresses to pages holding camera permission; `primeLocalAddresses`
+  requests it before creating a description. A hedge, unverified on a device.
+- A home-screen web app and Safari have **separate storage** on iOS. Opening an invitation with the
+  Camera app lands in Safari, so someone who uses Haven from the home screen should join in-app.
+- **Testing:** two Playwright browser contexts on one Chromium connect over localhost; use the
+  "Paste a code instead" path and stub `navigator.share`/`clipboard.writeText` to capture codes.
+  Launch with `--use-fake-ui-for-media-stream` so the camera request doesn't hang. Seed storage only
+  after the page settles — the app's first save overwrites anything written before it runs.
+- Not yet built: private coach chats that can read the session, "pass to the mediator", per-person
+  sensor sharing, protecting private chats on a shared phone, and the witness/apprentice role.

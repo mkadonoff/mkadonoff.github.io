@@ -13,7 +13,7 @@ add your own Venice.ai API key to use larger cloud models in chats you choose.
 
 ## What leaves your browser
 
-Inference is local by default, but the app is not hermetic. Exactly three
+Inference is local by default, but the app is not hermetic. Exactly four
 things can reach the network, and nothing else does:
 
 1. **Model weights**, on first use of each model — from HuggingFace, plus
@@ -25,6 +25,11 @@ things can reach the network, and nothing else does:
 3. **Your messages**, *only* in chats where you pick a Venice.ai cloud model —
    sent with the system prompt (date, and any location or heart rate you
    share) to Venice using your own API key. Off until you save a key.
+4. **Mediated sessions**, only when you start or join one. Messages travel
+   directly between the two phones over an encrypted WebRTC link, with no
+   server in between. Pairing asks a public STUN server (Google or Cloudflare)
+   for each phone's network address. If the mediator is a Venice model, the
+   shared conversation also goes to Venice from the host's phone.
 
 In on-device chats, your messages and the model's replies are never
 transmitted anywhere.
@@ -44,6 +49,11 @@ transmitted anywhere.
 - Optional **Venice.ai cloud models** alongside the on-device ones: save your
   own API key (model picker → Venice → Add key) and Venice's text models appear
   in the picker. Each reply is labelled on-device or Venice
+- **Mediated sessions**: two people, each on their own iPhone, talk together
+  with one AI as coach and mediator. Pair by scanning QR codes (best on the
+  same Wi-Fi). The guest reviews and accepts the mediator's instructions
+  before joining, either person can pause or leave, and the mediator can stay
+  silent when it isn't needed
 - Sidebar with conversation history: create, switch, delete (tap the trash
   icon, then tap again to confirm), and clear all
 - Nine models from ~0.4 GB to ~2.9 GB, ordered smallest first, each showing

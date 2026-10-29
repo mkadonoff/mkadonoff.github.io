@@ -110,3 +110,13 @@ export function MenuIcon({ className }: IconProps) {
     </svg>
   )
 }
+
+export function PeopleIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="9" cy="8" r="3.2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M15.5 5.2a3 3 0 0 1 0 5.6M17.5 13.8c2 .7 3.5 2.6 3.5 5.2" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}

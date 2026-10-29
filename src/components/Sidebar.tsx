@@ -99,7 +99,14 @@ export function Sidebar({
                   c.id === activeId ? 'bg-white/10 text-neutral-100' : 'text-neutral-400 hover:bg-white/5'
                 }`}
               >
-                <span className="truncate">{c.title}</span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate">{c.title}</span>
+                  {c.shared ? (
+                    <span className="shrink-0 rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-300">
+                      {c.shared.ended ? 'Ended' : 'Session'}
+                    </span>
+                  ) : null}
+                </span>
                 <button
                   type="button"
                   onClick={(e) => handleDeleteClick(e, c.id)}
