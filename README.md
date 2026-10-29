@@ -28,8 +28,10 @@ things can reach the network, and nothing else does:
 4. **Mediated sessions**, only when you start or join one. Messages travel
    directly between the two phones over an encrypted WebRTC link, with no
    server in between. Pairing asks a public STUN server (Google or Cloudflare)
-   for each phone's network address. If the mediator is a Venice model, the
-   shared conversation also goes to Venice from the host's phone.
+   for each phone's network address. If the session's AI is a Venice model,
+   the shared conversation also goes to Venice from the host's phone. A
+   private coach chat on a Venice model sends the session transcript, with
+   your messages, to Venice from your own phone using your own key.
 
 In on-device chats, your messages and the model's replies are never
 transmitted anywhere.
@@ -49,11 +51,19 @@ transmitted anywhere.
 - Optional **Venice.ai cloud models** alongside the on-device ones: save your
   own API key (model picker → Venice → Add key) and Venice's text models appear
   in the picker. Each reply is labelled on-device or Venice
-- **Mediated sessions**: two people, each on their own iPhone, talk together
-  with one AI as coach and mediator. Pair by scanning QR codes (best on the
-  same Wi-Fi). The guest reviews and accepts the mediator's instructions
-  before joining, either person can pause or leave, and the mediator can stay
-  silent when it isn't needed
+- **Sessions**: two people, each on their own iPhone, talk together with one
+  AI. Pair by scanning QR codes (best on the same Wi-Fi). Two modes:
+  - **Mediation**: a neutral AI mediator. Either person can pause or leave,
+    and the mediator can stay silent when it isn't needed.
+  - **Power exchange**: for a consensual dominant/submissive relationship. The
+    submissive hosts and writes an agreement (what the dominant may direct,
+    limits, absolute limits, check-ins, aftercare); the dominant accepts it
+    before joining. The AI coach works only within it. Either person can call
+    the safeword, which stops all direction and switches the AI to care; only
+    the submissive can lift it, unless the dominant called it. Changes to the
+    agreement are proposals that the other person must accept.
+  - Each person can open a **private coach** chat that reads the session. It
+    runs on their own phone with their own model; the other person never sees it
 - Sidebar with conversation history: create, switch, delete (tap the trash
   icon, then tap again to confirm), and clear all
 - Nine models from ~0.4 GB to ~2.9 GB, ordered smallest first, each showing

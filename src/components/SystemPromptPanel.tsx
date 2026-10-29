@@ -1,7 +1,7 @@
 import { peekLocationLine } from '../lib/location'
 import { heartRateLine } from '../lib/heartRate'
 import { buildSystemPrompt } from '../lib/respond'
-import { buildMediatorSystemPrompt } from '../lib/session'
+import { aiNoun, buildMediatorSystemPrompt } from '../lib/session'
 import type { SharedSession } from '../types'
 
 interface Props {
@@ -9,16 +9,33 @@ interface Props {
   geofenceActive: boolean
   cloud: boolean
   shared: SharedSession | null
+  /** A private coach chat's full system prompt, session transcript included. */
+  coach: string | null
   onClose: () => void
 }
 
-export function SystemPromptPanel({ locationSharing, geofenceActive, cloud, shared, onClose }: Props) {
+export function SystemPromptPanel({ locationSharing, geofenceActive, cloud, shared, coach, onClose }: Props) {
+  if (coach) {
+    return (
+      <div className="rounded-xl border border-white/10 bg-black/40 p-3">
+        <div className="mb-1.5 flex items-center justify-between">
+          <p className="text-[11px] font-medium text-neutral-400">
+            Exactly what your private coach is told on your next message{cloud ? ' (sent to Venice.ai)' : ''}:
+          </p>
+          <button onClick={onClose} className="text-[11px] text-neutral-500 hover:text-neutral-300">
+            Close
+          </button>
+        </div>
+        <pre className="max-h-[50dvh] overflow-y-auto whitespace-pre-wrap text-[11px] leading-relaxed text-neutral-300">{coach}</pre>
+      </div>
+    )
+  }
   if (shared) {
     return (
       <div className="rounded-xl border border-white/10 bg-black/40 p-3">
         <div className="mb-1.5 flex items-center justify-between">
           <p className="text-[11px] font-medium text-neutral-400">
-            The mediator's system prompt, as both of you agreed to it
+            The {aiNoun(shared)}'s system prompt, as both of you agreed to it
             {shared.cloud ? ' (sent to Venice.ai with the conversation)' : ''}:
           </p>
           <button onClick={onClose} className="text-[11px] text-neutral-500 hover:text-neutral-300">

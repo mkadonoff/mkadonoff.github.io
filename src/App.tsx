@@ -10,7 +10,7 @@ import { getLocationLine, isLocationSharingEnabled, setLocationSharingEnabled } 
 import { buildGeofenceLine, captureGeofenceAnchor, stripGeofenceMarker } from './lib/geofence'
 import { getReading, heartRateLine } from './lib/heartRate'
 import { describeEngineError, engineErrorText } from './lib/engineErrors'
-import { getVeniceKey, isVeniceModelId, veniceModelName } from './lib/venice'
+import { getCachedVeniceModels, getVeniceKey, isVeniceModelId, toVeniceModelId, veniceModelName } from './lib/venice'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
@@ -22,6 +22,8 @@ import { VenicePanel } from './components/VenicePanel'
 import { SessionSheet } from './components/SessionSheet'
 import { SessionBar } from './components/SessionBar'
 import { useSharedSession } from './lib/useSharedSession'
+import { buildCoachPrompt } from './lib/session'
+import { CoachBar } from './components/CoachBar'
 import { SystemPromptPanel } from './components/SystemPromptPanel'
 import { ToolbarButton } from './components/ToolbarButton'
 import { HeartIcon, InfoIcon, LocationIcon, MenuIcon, PeopleIcon, PlusIcon } from './components/icons'
@@ -86,6 +88,7 @@ export default function App() {
 
   const active = conversations.find((c) => c.id === activeId) ?? null
   const shared = active?.shared ?? null
+  const coachSession = active?.coachFor ? (conversations.find((c) => c.id === active.coachFor) ?? null) : null
   const sharedConnected = !!shared && session.liveId === active?.id && session.connected
 
   function updateConversation(id: string, updater: (c: Conversation) => Conversation) {
@@ -115,6 +118,30 @@ export default function App() {
     if (activeId === id) {
       setActiveId(remaining.length > 0 ? remaining[Math.min(index, remaining.length - 1)].id : null)
     }
+  }
+
+  /**
+   * One private coach chat per session on this phone. It runs on this phone's own model — a Venice
+   * model when a key is saved, since on-device models are too small to follow a session well.
+   */
+  function openCoach(sessionConv: Conversation) {
+    const existing = conversations.find((c) => c.coachFor === sessionConv.id)
+    if (existing) {
+      setActiveId(existing.id)
+      return
+    }
+    const venice = getVeniceKey() ? getCachedVeniceModels()[0] : undefined
+    const conv: Conversation = {
+      id: makeId(),
+      title: `Private coach · ${sessionConv.shared?.peerName ?? 'session'}`,
+      modelId: venice ? toVeniceModelId(venice.id) : DEFAULT_MODEL_ID,
+      messages: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      coachFor: sessionConv.id,
+    }
+    setConversations((prev) => [conv, ...prev])
+    setActiveId(conv.id)
   }
 
   function deleteAllConversations() {
@@ -169,7 +196,7 @@ export default function App() {
 
     updateConversation(conv.id, (c) => ({
       ...c,
-      title: c.messages.length === 0 ? titleFromText(text) : c.title,
+      title: c.messages.length === 0 && !c.coachFor ? titleFromText(text) : c.title,
       messages: [...c.messages, userMsg, assistantMsg],
       updatedAt: Date.now(),
     }))
@@ -203,28 +230,37 @@ export default function App() {
           : { status: 'ready', modelId: model.webllmId, progress: 1, progressText: '', error: null },
       )
 
-      const locationLine = await getLocationLine()
+      const linked = conv.coachFor ? conversationsRef.current.find((c) => c.id === conv.coachFor) : undefined
+      let history: ReturnType<typeof toChatHistory>
+      if (linked?.shared) {
+        // A private coach reads the session in place of device context. On-device models hold about 4K
+        // tokens, so they see a much shorter stretch of it.
+        const coachPrompt = buildCoachPrompt(linked.shared, linked.messages, cloud ? 12_000 : 1_500)
+        history = [{ role: 'system', content: coachPrompt }, ...toChatHistory([...priorMessages, userMsg]).slice(1)]
+      } else {
+        const locationLine = await getLocationLine()
 
-      let geofenceLine: string | null = null
-      if (isLocationSharingEnabled()) {
-        let anchor = conv.geofenceAnchor
-        if (!anchor) {
-          try {
-            anchor = await captureGeofenceAnchor()
-            updateConversation(conv.id, (c) => ({ ...c, geofenceAnchor: anchor }))
-          } catch {
-            anchor = undefined
+        let geofenceLine: string | null = null
+        if (isLocationSharingEnabled()) {
+          let anchor = conv.geofenceAnchor
+          if (!anchor) {
+            try {
+              anchor = await captureGeofenceAnchor()
+              updateConversation(conv.id, (c) => ({ ...c, geofenceAnchor: anchor }))
+            } catch {
+              anchor = undefined
+            }
           }
+          if (anchor) geofenceLine = await buildGeofenceLine(anchor)
         }
-        if (anchor) geofenceLine = await buildGeofenceLine(anchor)
-      }
 
-      const history = toChatHistory([...priorMessages, userMsg], {
-        cloud,
-        locationLine,
-        geofenceLine,
-        heartRateLine: heartRateLine(),
-      })
+        history = toChatHistory([...priorMessages, userMsg], {
+          cloud,
+          locationLine,
+          geofenceLine,
+          heartRateLine: heartRateLine(),
+        })
+      }
 
       let resetRequested = false
       await generate(
@@ -347,7 +383,7 @@ export default function App() {
               onClick={() => setShowPrompt((v) => !v)}
             />
             {/* Sessions never carry either person's sensor data, so these controls don't apply there. */}
-            {shared ? null : (
+            {shared || coachSession ? null : (
               <>
             <ToolbarButton
               icon={HeartIcon}
@@ -377,6 +413,10 @@ export default function App() {
             mediatorBusy={session.mediatorBusy && session.liveId === active.id}
             onPause={session.pause}
             onResume={session.resume}
+            onSafeword={session.callSafeword}
+            onLiftSafeword={session.liftSafeword}
+            onAgreement={() => session.setSheet({ step: 'agreement' })}
+            onCoach={() => openCoach(active)}
             onLeave={() => {
               if (window.confirm(`Leave the session with ${shared.peerName ?? 'the other person'}? This ends it for both of you.`)) {
                 session.leave()
@@ -386,6 +426,10 @@ export default function App() {
               shared.role === 'host' ? session.reconnect(active) : session.setSheet({ step: 'join', error: null })
             }
           />
+        ) : null}
+
+        {coachSession?.shared ? (
+          <CoachBar session={coachSession.shared} onBack={() => setActiveId(coachSession.id)} />
         ) : null}
 
         <EngineBanner state={engineState} />
@@ -410,6 +454,7 @@ export default function App() {
                 geofenceActive={!!active?.geofenceAnchor}
                 cloud={isVeniceModelId(active?.modelId)}
                 shared={shared}
+                coach={coachSession?.shared && active ? buildCoachPrompt(coachSession.shared, coachSession.messages, isVeniceModelId(active.modelId) ? 12_000 : 1_500) : null}
                 onClose={() => setShowPrompt(false)}
               />
             ) : null}
@@ -433,6 +478,7 @@ export default function App() {
           onSend={sendMessage}
           onStop={sending && !shared ? stopGenerating : undefined}
           shared={shared}
+          coachFor={coachSession?.shared ?? null}
           locationSharing={locationSharing}
           cloudModelName={active && isVeniceModelId(active.modelId) ? veniceModelName(active.modelId) : null}
         />
@@ -440,7 +486,21 @@ export default function App() {
 
       <SessionSheet
         sheet={session.sheet}
+        session={shared}
         onClose={session.closeSheet}
+        onEditAgreement={() => session.setSheet({ step: 'agreement-edit' })}
+        onPropose={(agreement) => {
+          session.propose(agreement)
+          session.setSheet({ step: 'closed' })
+        }}
+        onRespond={(accept) => {
+          session.respondToProposal(accept)
+          session.setSheet({ step: 'closed' })
+        }}
+        onWithdraw={() => {
+          session.withdraw()
+          session.setSheet({ step: 'closed' })
+        }}
         onStartForm={() => session.setSheet({ step: 'host-form' })}
         onJoinForm={() => session.setSheet({ step: 'join', error: null })}
         onHost={(options) => void session.startHosting(options)}

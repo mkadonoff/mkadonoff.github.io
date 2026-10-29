@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react'
 import { SendIcon, StopIcon } from './icons'
 import type { SharedSession } from '../types'
+import { aiNoun, modeOf } from '../lib/session'
 
 interface Props {
   disabled: boolean
@@ -11,9 +12,11 @@ interface Props {
   cloudModelName: string | null
   /** Set in a mediated session — the disclosure then describes who sees what instead. */
   shared?: SharedSession | null
+  /** Set in a private coach chat: the session it reads. */
+  coachFor?: SharedSession | null
 }
 
-export function Composer({ disabled, onSend, onStop, locationSharing, cloudModelName, shared }: Props) {
+export function Composer({ disabled, onSend, onStop, locationSharing, cloudModelName, shared, coachFor }: Props) {
   const [value, setValue] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -54,7 +57,13 @@ export function Composer({ disabled, onSend, onStop, locationSharing, cloudModel
           onKeyDown={onKeyDown}
           rows={1}
           disabled={disabled}
-          placeholder={shared ? `Message ${shared.peerName ?? 'the session'} and the mediator…` : 'Message Haven…'}
+          placeholder={
+            shared
+              ? `Message ${shared.peerName ?? 'the session'} and the ${aiNoun(shared)}…`
+              : coachFor
+                ? 'Ask your private coach…'
+                : 'Message Haven…'
+          }
           className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-[15px] text-neutral-100 placeholder-neutral-500 outline-none disabled:opacity-60"
         />
         {onStop ? (
@@ -77,6 +86,12 @@ export function Composer({ disabled, onSend, onStop, locationSharing, cloudModel
       <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] text-neutral-600">
         {shared ? (
           <SessionDisclosure session={shared} />
+        ) : coachFor ? (
+          <span className="text-violet-300/80">
+            Only you see this chat. To answer, your coach reads the session, including what{' '}
+            {coachFor.peerName ?? 'the other person'} wrote
+            {cloudModelName ? `, and sends it with your messages to Venice.ai (${cloudModelName}) using your key` : ', on this phone'}.
+          </span>
         ) : cloudModelName ? (
           <span className="text-amber-400/80">
             This chat uses {cloudModelName} on Venice.ai: your messages and the system prompt (date, plus any
@@ -86,7 +101,7 @@ export function Composer({ disabled, onSend, onStop, locationSharing, cloudModel
         ) : (
           'Runs on-device via WebGPU — nothing you type or generate leaves your browser. First reply from a model downloads and caches it; after that it works offline.'
         )}
-        {locationSharing && !shared
+        {locationSharing && !shared && !coachFor
           ? ' Location sharing is on: your device sends coordinates to a geocoding lookup to resolve a place name for the model.'
           : ''}
       </p>
@@ -99,8 +114,8 @@ function SessionDisclosure({ session }: { session: SharedSession }) {
   const where = session.role === 'host' ? 'this phone' : `${session.hostName}'s phone`
   return (
     <span className="text-sky-300/80">
-      Mediated session: what you send goes directly to {peer}'s phone over an encrypted link, and to the mediator,
-      which runs on {where}
+      {modeOf(session) === 'power' ? 'Power-exchange session' : 'Mediated session'}: what you send goes directly to{' '}
+      {peer}'s phone over an encrypted link, and to the {aiNoun(session)}, which runs on {where}
       {session.cloud ? ' and sends the shared conversation to Venice.ai' : ''}. No location or heart rate is shared.
     </span>
   )

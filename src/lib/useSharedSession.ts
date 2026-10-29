@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { InitProgressReport } from '@mlc-ai/web-llm'
-import type { Conversation, Message, SharedSession } from '../types'
+import type { Agreement, Conversation, Message, Proposal, SessionMode, SessionRole, SharedSession } from '../types'
 import { acceptAnswer, answerOffer, createOffer, joinLink, primeLocalAddresses, type PeerLink } from './peer'
 import {
   buildMediatorHistory,
+  buildPowerInstructions,
+  hostAndGuest,
   isPass,
+  modeOf,
   isWireMessage,
   makeSessionId,
   mightBePass,
@@ -32,13 +35,18 @@ export type SessionSheet =
   | { step: 'guest-answer'; code: string; connected: boolean }
   | { step: 'guest-consent'; setup: SetupMessage }
   | { step: 'notice'; title: string; body: string }
+  | { step: 'agreement' }
+  | { step: 'agreement-edit' }
 
 export interface HostOptions {
   name: string
   modelId: string
   modelLabel: string
   cloud: boolean
+  mode: SessionMode
+  /** Mediation: the mediator's instructions. Power: ignored — rendered from the agreement. */
   instructions: string
+  agreement?: Agreement
 }
 
 interface Live {
@@ -57,6 +65,11 @@ interface Options {
 
 function makeId() {
   return Math.random().toString(36).slice(2, 10)
+}
+
+/** Mediation pauses silence everyone; a power-mode safeword keeps the conversation open for care. */
+function isOpen(session: SharedSession): boolean {
+  return !session.ended && !(modeOf(session) === 'mediation' && session.pausedBy)
 }
 
 const CONNECT_FAILED = {
@@ -193,6 +206,7 @@ export function useSharedSession({ getConversations, setConversations, setActive
 
   function startHosting(options: HostOptions) {
     saveName(options.name)
+    const power = options.mode === 'power' && options.agreement
     const setup: SetupMessage = {
       t: 'setup',
       sessionId: makeSessionId(),
@@ -200,7 +214,10 @@ export function useSharedSession({ getConversations, setConversations, setActive
       modelId: options.modelId,
       modelLabel: options.modelLabel,
       cloud: options.cloud,
-      instructions: options.instructions,
+      mode: options.mode,
+      instructions: power ? buildPowerInstructions(options.agreement!, 1) : options.instructions,
+      agreement: power ? options.agreement : undefined,
+      agreementVersion: power ? 1 : undefined,
     }
     return host(setup, null)
   }
@@ -218,6 +235,9 @@ export function useSharedSession({ getConversations, setConversations, setActive
         modelLabel: shared.modelLabel,
         cloud: shared.cloud,
         instructions: shared.instructions,
+        mode: modeOf(shared),
+        agreement: shared.agreement,
+        agreementVersion: shared.agreementVersion,
       },
       conv.id,
     )
@@ -245,6 +265,7 @@ export function useSharedSession({ getConversations, setConversations, setActive
         const { setup } = pending
         const name = message.name.trim() || 'Guest'
         let conv = pending.convId ? getConversations().find((c) => c.id === pending.convId) : undefined
+        const isNew = !conv
         if (!conv) {
           conv = {
             id: makeId(),
@@ -268,12 +289,20 @@ export function useSharedSession({ getConversations, setConversations, setActive
           cloud: setup.cloud,
           pausedBy: conv.shared?.pausedBy ?? null,
           ended: false,
+          mode: setup.mode,
+          agreement: setup.agreement,
+          agreementVersion: setup.agreementVersion,
+          safeword: conv.shared?.safeword ?? null,
+          proposal: conv.shared?.proposal ?? null,
         }
         writeConversation(conv.id, (c) => ({ ...c, shared: session }))
         goLive({ convId: conv.id, modelId: setup.modelId, session, messages: conv.messages })
         // The host's transcript is the record: replay it so the guest's copy matches.
         for (const m of conv.messages) send({ t: 'msg', message: m })
         if (session.pausedBy) send({ t: 'pause', by: session.pausedBy })
+        if (session.safeword) send({ t: 'safeword', by: session.safeword })
+        if (session.proposal) send({ t: 'proposal', proposal: session.proposal })
+        if (isNew) postNotice(`${name} joined the session.`)
         return
       }
       case 'decline':
@@ -282,12 +311,40 @@ export function useSharedSession({ getConversations, setConversations, setActive
         setSheet({ step: 'notice', title: 'Invitation declined', body: 'The other person chose not to join this session.' })
         return
       case 'msg': {
-        // Only the guest's own words are accepted — never a mediator reply or a message in the host's name.
-        if (!live || live.session.ended || message.message.role !== 'user') return
-        applyMessage({ ...message.message, from: 'guest', author: live.session.peerName ?? message.message.author, modelId: undefined })
+        // Only the guest's own words are accepted — never an AI reply, a notice, or a message in the host's name.
+        if (!live || !isOpen(live.session) || message.message.role !== 'user') return
+        applyMessage({
+          ...message.message,
+          from: 'guest',
+          author: live.session.peerName ?? message.message.author,
+          modelId: undefined,
+          notice: undefined,
+        })
         void runMediator()
         return
       }
+      case 'safeword':
+        if (live && !live.session.safeword) applySafeword('guest')
+        return
+      case 'lift':
+        // The guest can lift only a safeword they called themselves — never the submissive's.
+        if (live?.session.safeword === 'guest') applyLift('guest')
+        return
+      case 'propose':
+        if (live && !live.session.proposal && live.session.agreement) {
+          setProposal({ id: makeId(), by: 'guest', agreement: message.agreement })
+        }
+        return
+      case 'respond':
+        // Only the host's own proposals are answered by the guest.
+        if (live?.session.proposal?.by === 'host' && live.session.proposal.id === message.id) {
+          if (message.accept) applyProposal()
+          else declineProposal('guest')
+        }
+        return
+      case 'withdraw':
+        if (live?.session.proposal?.by === 'guest' && live.session.proposal.id === message.id) withdrawProposal('guest')
+        return
       case 'pause':
         if (!live) return
         updateSession({ pausedBy: 'guest' })
@@ -316,7 +373,7 @@ export function useSharedSession({ getConversations, setConversations, setActive
       do {
         state.pending = false
         await mediatorTurn()
-      } while (state.pending && liveRef.current && !liveRef.current.session.pausedBy && !liveRef.current.session.ended)
+      } while (state.pending && liveRef.current && isOpen(liveRef.current.session))
     } finally {
       state.running = false
       setMediatorBusy(false)
@@ -325,7 +382,7 @@ export function useSharedSession({ getConversations, setConversations, setActive
 
   async function mediatorTurn() {
     const live = liveRef.current
-    if (!live || live.session.role !== 'host' || live.session.pausedBy || live.session.ended) return
+    if (!live || live.session.role !== 'host' || !isOpen(live.session)) return
     const controller = new AbortController()
     mediatorRef.current.abort = controller
     const id = makeId()
@@ -399,7 +456,12 @@ export function useSharedSession({ getConversations, setConversations, setActive
         const known = getConversations().find((c) => c.shared?.sessionId === message.sessionId && !c.shared.ended)
         // Rejoining needs no fresh consent only if what was agreed hasn't changed.
         if (known?.shared && known.shared.instructions === message.instructions && known.modelId === message.modelId) {
-          const session = { ...known.shared, peerName: message.hostName }
+          const session = {
+            ...known.shared,
+            peerName: message.hostName,
+            agreement: message.agreement,
+            agreementVersion: message.agreementVersion,
+          }
           send({ t: 'accept', name: session.selfName })
           writeConversation(known.id, (c) => ({ ...c, shared: session }))
           goLive({ convId: known.id, modelId: known.modelId, session, messages: known.messages })
@@ -424,6 +486,18 @@ export function useSharedSession({ getConversations, setConversations, setActive
       case 'leave':
         endSession()
         return
+      case 'safeword':
+        updateSession({ safeword: message.by })
+        return
+      case 'lift':
+        updateSession({ safeword: null })
+        return
+      case 'proposal':
+        updateSession({ proposal: message.proposal })
+        return
+      case 'agreement':
+        updateSession({ agreement: message.agreement, agreementVersion: message.version, instructions: message.instructions })
+        return
     }
   }
 
@@ -444,6 +518,11 @@ export function useSharedSession({ getConversations, setConversations, setActive
       cloud: setup.cloud,
       pausedBy: null,
       ended: false,
+      mode: setup.mode,
+      agreement: setup.agreement,
+      agreementVersion: setup.agreementVersion,
+      safeword: null,
+      proposal: null,
     }
     const conv: Conversation = {
       id: makeId(),
@@ -483,7 +562,7 @@ export function useSharedSession({ getConversations, setConversations, setActive
 
   function sendText(text: string) {
     const live = liveRef.current
-    if (!live || !connected || live.session.pausedBy || live.session.ended) return
+    if (!live || !connected || !isOpen(live.session)) return
     const message: Message = {
       id: makeId(),
       role: 'user',
@@ -495,6 +574,114 @@ export function useSharedSession({ getConversations, setConversations, setActive
     applyMessage(message)
     send({ t: 'msg', message })
     if (live.session.role === 'host') void runMediator()
+  }
+
+  // ---------- power mode: notices, safeword, agreement ----------
+
+  /** Host only: session events go into the transcript, so both people and the AI see them. */
+  function postNotice(content: string) {
+    const live = liveRef.current
+    if (!live || live.session.role !== 'host') return
+    const message: Message = { id: makeId(), role: 'user', content, notice: true, author: 'Session', createdAt: Date.now() }
+    applyMessage(message)
+    send({ t: 'msg', message })
+  }
+
+  function nameOf(role: SessionRole): string {
+    const live = liveRef.current
+    if (!live) return 'Someone'
+    const { host, guest } = hostAndGuest(live.session)
+    return role === 'host' ? host : guest
+  }
+
+  function applySafeword(by: SessionRole) {
+    updateSession({ safeword: by })
+    send({ t: 'safeword', by })
+    mediatorRef.current.abort?.abort()
+    postNotice(`${nameOf(by)} called the safeword. All direction has stopped.`)
+    // The coach responds at once, in care mode — the prompt changes while the safeword holds.
+    void runMediator()
+  }
+
+  function applyLift(by: SessionRole) {
+    updateSession({ safeword: null })
+    send({ t: 'lift', by })
+    postNotice(`${nameOf(by)} lifted the safeword.`)
+  }
+
+  /** Anyone can call it, at any time. It takes effect on this phone immediately. */
+  function callSafeword() {
+    const live = liveRef.current
+    if (!live || live.session.safeword || live.session.ended) return
+    if (live.session.role === 'host') applySafeword('host')
+    else {
+      updateSession({ safeword: 'guest' })
+      send({ t: 'safeword', by: 'guest' })
+    }
+  }
+
+  /** The submissive (host) can lift any safeword; the dominant only one they called themselves. */
+  function liftSafeword() {
+    const live = liveRef.current
+    if (!live?.session.safeword) return
+    if (live.session.role === 'host') applyLift('host')
+    else if (live.session.safeword === 'guest') send({ t: 'lift', by: 'guest' })
+  }
+
+  function setProposal(proposal: Proposal | null) {
+    updateSession({ proposal })
+    send({ t: 'proposal', proposal })
+    if (proposal) postNotice(`${nameOf(proposal.by)} proposed changes to the agreement. Nothing changes unless both accept.`)
+  }
+
+  function applyProposal() {
+    const live = liveRef.current
+    const proposal = live?.session.proposal
+    if (!live || !proposal) return
+    const version = (live.session.agreementVersion ?? 1) + 1
+    const instructions = buildPowerInstructions(proposal.agreement, version)
+    updateSession({ agreement: proposal.agreement, agreementVersion: version, instructions, proposal: null })
+    send({ t: 'agreement', agreement: proposal.agreement, version, instructions })
+    send({ t: 'proposal', proposal: null })
+    postNotice(`The agreement was updated to version ${version}, accepted by both.`)
+  }
+
+  function declineProposal(by: SessionRole) {
+    updateSession({ proposal: null })
+    send({ t: 'proposal', proposal: null })
+    postNotice(`${nameOf(by)} declined the proposed changes. The agreement is unchanged.`)
+  }
+
+  function withdrawProposal(by: SessionRole) {
+    updateSession({ proposal: null })
+    send({ t: 'proposal', proposal: null })
+    postNotice(`${nameOf(by)} withdrew their proposed changes.`)
+  }
+
+  function propose(agreement: Agreement) {
+    const live = liveRef.current
+    if (!live || live.session.proposal || !connected) return
+    if (live.session.role === 'host') setProposal({ id: makeId(), by: 'host', agreement })
+    else send({ t: 'propose', agreement })
+  }
+
+  /** Answers the other person's proposal. Nobody can accept their own. */
+  function respondToProposal(accept: boolean) {
+    const live = liveRef.current
+    const proposal = live?.session.proposal
+    if (!live || !proposal || proposal.by === live.session.role) return
+    if (live.session.role === 'host') {
+      if (accept) applyProposal()
+      else declineProposal('host')
+    } else send({ t: 'respond', id: proposal.id, accept })
+  }
+
+  function withdraw() {
+    const live = liveRef.current
+    const proposal = live?.session.proposal
+    if (!live || !proposal || proposal.by !== live.session.role) return
+    if (live.session.role === 'host') withdrawProposal('host')
+    else send({ t: 'withdraw', id: proposal.id })
   }
 
   function pause() {
@@ -535,15 +722,21 @@ export function useSharedSession({ getConversations, setConversations, setActive
     }, 300)
   }
 
-  // Opening a join link — from the Camera app or a message — starts joining straight away. The code
+  // Opening a join link — from the Camera app, a message, or pasted into a tab where Haven is already
+  // open (only the hash changes then, so there's no reload) — starts joining straight away. The code
   // is stripped from the address bar so a reload or shared link doesn't reuse it.
+  const joinRef = useRef(joinWithCode)
+  joinRef.current = joinWithCode
   useEffect(() => {
-    const match = window.location.hash.match(/^#join=(.+)$/)
-    if (!match) return
-    window.history.replaceState(null, '', window.location.pathname + window.location.search)
-    void joinWithCode(match[1])
-    // Runs once on load; joinWithCode only touches refs and state setters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    function joinFromHash() {
+      const match = window.location.hash.match(/^#join=(.+)$/)
+      if (!match) return
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      void joinRef.current(match[1])
+    }
+    joinFromHash()
+    window.addEventListener('hashchange', joinFromHash)
+    return () => window.removeEventListener('hashchange', joinFromHash)
   }, [])
 
   return {
@@ -562,6 +755,11 @@ export function useSharedSession({ getConversations, setConversations, setActive
     sendText,
     pause,
     resume,
+    callSafeword,
+    liftSafeword,
+    propose,
+    respondToProposal,
+    withdraw,
     leave,
     forget,
   }

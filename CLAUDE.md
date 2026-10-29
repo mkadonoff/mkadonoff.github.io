@@ -28,8 +28,9 @@ WebLLM model (the default) or a Venice.ai cloud model (ids prefixed `venice:`, `
 Everything else — history, the system-prompt lines, the geofence marker — is shared.
 `prepareGenerator` (`src/lib/generate.ts`) turns a model id into a streaming function for either.
 
-A conversation with `shared` set is a **mediated session** instead: two people on their own phones
-plus one AI mediator (see the Sessions section).
+A conversation with `shared` set is a **session** instead: two people on their own phones plus one
+AI, either a neutral mediator or a power-exchange coach (see the Sessions section). A conversation
+with `coachFor` set is a **private coach chat** linked to a session on this phone.
 
 Device context reaches the model as **system-prompt lines**, assembled by `buildSystemPrompt` in
 `src/lib/respond.ts`: date/time, location, geofence distance, heart rate. Each is null when its
@@ -121,7 +122,7 @@ Run `npx tsc -b && npx oxlint && npm run build`, then:
 - Not yet done: the "digital twin" split, where the local model holds raw sensor data and only a
   summary goes to the cloud. Today a Venice chat gets the same sensor lines a local chat does.
 
-## Sessions (two people, one mediator)
+## Sessions (two people, one AI)
 
 - **Direct WebRTC data channel, no server.** The phones swap connection descriptions by hand: the
   host shows an invitation QR (a `#join=` link, so the iPhone Camera app can open it), the guest's
@@ -149,6 +150,39 @@ Run `npx tsc -b && npx oxlint && npm run build`, then:
   "Paste a code instead" path and stub `navigator.share`/`clipboard.writeText` to capture codes.
   Launch with `--use-fake-ui-for-media-stream` so the camera request doesn't hang. Seed storage only
   after the page settles — the app's first save overwrites anything written before it runs.
-- Not yet built: private coach chats that can read the session, "pass to the mediator", per-person
-  sensor sharing, protecting private chats on a shared phone, and the human mediator role (a third
-  person, distinct from the AI mediator).
+- **Two modes** (`SessionMode`): `mediation`, a neutral mediator with pause; and `power`, a consensual
+  power-exchange (D/s) relationship where the AI coaches the dominant within a written agreement.
+  Sessions saved before modes existed have no `mode` and are mediation (`modeOf`).
+
+### Power mode — the safeguards are the point; keep them load-bearing
+
+- **The submissive always hosts.** The host's phone runs the AI and holds the agreement, so the
+  person the limits protect holds the phone that enforces them. Don't add a dominant-hosts option.
+- **The agreement** (`Agreement`: what the dominant may direct, limits, absolute limits, check-ins,
+  aftercare, notes) is rendered into the AI's instructions by `buildPowerInstructions`, which tells
+  the AI to refuse anything under absolute limits. The guest accepts it before joining.
+- **Changes are proposals.** Either person proposes; it applies only when the *other* accepts. The
+  host validates: nobody accepts their own proposal, one open at a time. Applying bumps
+  `agreementVersion` and re-renders the instructions, so a later rejoin re-asks for consent only if
+  they actually changed.
+- **Safeword.** Either person can call it; it is not a pause — messages stay open for care. The host
+  lifts any safeword; the guest can lift only one the guest called (enforced on the host, not just
+  hidden in the UI). While it holds, the AI prompt drops the `<<PASS>>` option and switches to
+  care/aftercare (`safewordBlock`), and the AI replies at once.
+- **Session notices** (`Message.notice`) record joins, safewords and agreement changes in the
+  transcript. Only the host creates them; the AI sees them as `[Session notice]` lines.
+- The AI is labelled "AI coach" in power mode (`aiName`/`aiNoun`); "human mediator" is reserved for
+  a future third seat (a therapist).
+
+### Private coach chats
+
+- One per session per phone (`openCoach` in `App.tsx`), running on **this phone's own model and
+  key** — never the host's, or the host's phone would process the other person's private chat.
+- Its system prompt (`buildCoachPrompt`) carries the role (dominant's coach; submissive's coach, on
+  their side, with safeword reminders; or a neutral mediation coach), the agreement, and the most
+  recent stretch of the session transcript: 12K characters for cloud models, 1.5K on-device.
+- It carries no device-context lines, and the sensor toolbar controls are hidden there.
+- The consent screen discloses that both people may have one that reads the session.
+
+- Not yet built: "pass to the coach/mediator" from a private chat, per-person sensor sharing,
+  protecting private chats on a shared phone, and the human mediator (therapist) as a third seat.

@@ -105,6 +105,10 @@ export function Sidebar({
                     <span className="shrink-0 rounded-full bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-300">
                       {c.shared.ended ? 'Ended' : 'Session'}
                     </span>
+                  ) : c.coachFor ? (
+                    <span className="shrink-0 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-300">
+                      Coach
+                    </span>
                   ) : null}
                 </span>
                 <button

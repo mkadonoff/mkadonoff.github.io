@@ -1,4 +1,5 @@
 import type { Message, SharedSession } from '../types'
+import { aiName } from '../lib/session'
 import { modelLabel } from '../data/models'
 import { isVeniceModelId } from '../lib/venice'
 
@@ -58,9 +59,12 @@ export function MessageBubble({ message, shared }: { message: Message; shared?: 
  * (left, neutral). Every bubble is named, since a screenshot shouldn't leave authorship ambiguous.
  */
 function SharedBubble({ message, session }: { message: Message; session: SharedSession }) {
+  if (message.notice) {
+    return <p className="mx-auto max-w-sm text-center text-[11px] leading-relaxed text-neutral-500">{message.content}</p>
+  }
   const mediator = message.role === 'assistant'
   const mine = !mediator && message.from === session.role
-  const name = mediator ? `Mediator · ${session.modelLabel}` : mine ? 'You' : (message.author ?? session.peerName ?? 'Them')
+  const name = mediator ? `${aiName(session)} · ${session.modelLabel}` : mine ? 'You' : (message.author ?? session.peerName ?? 'Them')
 
   return (
     <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>

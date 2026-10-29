@@ -10,9 +10,38 @@ export interface Message {
   from?: SessionRole
   /** Shared sessions only: that participant's display name, as it was when they wrote it. */
   author?: string
+  /** Shared sessions only: a session event (safeword, agreement change) rather than anyone's words. */
+  notice?: boolean
 }
 
 export type SessionRole = 'host' | 'guest'
+
+/**
+ * `mediation`: a neutral AI mediator between two people. `power`: a consensual power-exchange
+ * relationship, where the AI coaches within a written agreement. In `power` the host is always the
+ * submissive, so the phone that runs the AI belongs to the person the limits protect.
+ */
+export type SessionMode = 'mediation' | 'power'
+
+/** The written terms of a power-exchange session. Rendered into the AI coach's instructions. */
+export interface Agreement {
+  /** What the dominant may direct. */
+  directs: string
+  /** The submissive's limits: things that need asking first, or that are off the table for now. */
+  limits: string
+  /** Absolute limits: never, under any circumstances. */
+  absoluteLimits: string
+  checkIns: string
+  aftercare: string
+  notes: string
+}
+
+/** A proposed change to the agreement. It takes effect only when the other person accepts it. */
+export interface Proposal {
+  id: string
+  by: SessionRole
+  agreement: Agreement
+}
 
 /**
  * A live conversation between two people on their own phones, connected directly over WebRTC, with
@@ -29,9 +58,16 @@ export interface SharedSession {
   /** Display name of the mediator's model, as the host described it. */
   modelLabel: string
   cloud: boolean
-  /** Role of whoever paused the session, or null while it's running. */
+  /** Role of whoever paused the session, or null while it's running. Mediation only. */
   pausedBy: SessionRole | null
   ended: boolean
+  /** Absent on sessions saved before modes existed, which were all mediation. */
+  mode?: SessionMode
+  agreement?: Agreement
+  agreementVersion?: number
+  /** Role of whoever called the safeword, or null. Power mode only. */
+  safeword?: SessionRole | null
+  proposal?: Proposal | null
 }
 
 export interface GeofenceAnchor {
@@ -50,6 +86,8 @@ export interface Conversation {
   updatedAt: number
   geofenceAnchor?: GeofenceAnchor
   shared?: SharedSession
+  /** A private coach chat linked to a session: only this phone sees it, and it reads that session. */
+  coachFor?: string
 }
 
 export interface ModelOption {
