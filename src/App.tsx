@@ -8,6 +8,7 @@ import { getLocationLine, isLocationSharingEnabled, setLocationSharingEnabled } 
 import { buildGeofenceLine, captureGeofenceAnchor, stripGeofenceMarker } from './lib/geofence'
 import { getReading, heartRateLine } from './lib/heartRate'
 import { describeEngineError, engineErrorText } from './lib/engineErrors'
+import { getVeniceKey, isVeniceModelId, streamVeniceReply, veniceModelName, VeniceError } from './lib/venice'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
@@ -15,6 +16,7 @@ import { Composer } from './components/Composer'
 import { EmptyState } from './components/EmptyState'
 import { EngineBanner } from './components/EngineBanner'
 import { HeartRatePanel } from './components/HeartRatePanel'
+import { VenicePanel } from './components/VenicePanel'
 import { SystemPromptPanel } from './components/SystemPromptPanel'
 import { ToolbarButton } from './components/ToolbarButton'
 import { HeartIcon, InfoIcon, LocationIcon, MenuIcon, PlusIcon } from './components/icons'
@@ -39,6 +41,8 @@ export default function App() {
   const [sending, setSending] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
   const [showHeartRate, setShowHeartRate] = useState(false)
+  const [showVenice, setShowVenice] = useState(false)
+  const [veniceKeySet, setVeniceKeySet] = useState(() => !!getVeniceKey())
   const [locationSharing, setLocationSharing] = useState(isLocationSharingEnabled)
   const [, forceRerender] = useState(0)
   const [engineState, setEngineState] = useState<EngineState>({
@@ -122,6 +126,7 @@ export default function App() {
 
   async function sendMessage(text: string) {
     const conv = active ?? createConversation()
+    const cloud = isVeniceModelId(conv.modelId)
     const model = MODELS.find((m) => m.id === conv.modelId) ?? MODELS[0]
 
     const userMsg: Message = { id: makeId(), role: 'user', content: text, createdAt: Date.now() }
@@ -143,7 +148,7 @@ export default function App() {
       updatedAt: Date.now(),
     }))
 
-    if (!(await isWebGPUSupported())) {
+    if (!cloud && !(await isWebGPUSupported())) {
       updateConversation(conv.id, (c) => ({
         ...c,
         messages: c.messages.map((m) =>
@@ -164,16 +169,31 @@ export default function App() {
     abortRef.current = controller
 
     try {
-      const engine = await getEngine(model.webllmId, (report) => {
-        setEngineState({
-          status: 'loading',
-          modelId: model.webllmId,
-          progress: report.progress,
-          progressText: report.text,
-          error: null,
+      let generate: (
+        history: ReturnType<typeof toChatHistory>,
+        onChunk: (soFar: string) => void,
+        signal: AbortSignal,
+      ) => Promise<void>
+
+      if (cloud) {
+        const apiKey = getVeniceKey()
+        if (!apiKey) throw new VeniceError('No Venice API key is saved in this browser.', null)
+        // Clears a leftover on-device error banner, which no longer applies to this chat.
+        setEngineState({ status: 'idle', modelId: null, progress: 0, progressText: '', error: null })
+        generate = (history, onChunk, signal) => streamVeniceReply(conv.modelId, apiKey, history, onChunk, signal)
+      } else {
+        const engine = await getEngine(model.webllmId, (report) => {
+          setEngineState({
+            status: 'loading',
+            modelId: model.webllmId,
+            progress: report.progress,
+            progressText: report.text,
+            error: null,
+          })
         })
-      })
-      setEngineState({ status: 'ready', modelId: model.webllmId, progress: 1, progressText: '', error: null })
+        setEngineState({ status: 'ready', modelId: model.webllmId, progress: 1, progressText: '', error: null })
+        generate = (history, onChunk, signal) => streamModelReply(engine, history, onChunk, signal)
+      }
 
       const locationLine = await getLocationLine()
 
@@ -191,11 +211,15 @@ export default function App() {
         if (anchor) geofenceLine = await buildGeofenceLine(anchor)
       }
 
-      const history = toChatHistory([...priorMessages, userMsg], locationLine, geofenceLine, heartRateLine())
+      const history = toChatHistory([...priorMessages, userMsg], {
+        cloud,
+        locationLine,
+        geofenceLine,
+        heartRateLine: heartRateLine(),
+      })
 
       let resetRequested = false
-      await streamModelReply(
-        engine,
+      await generate(
         history,
         (soFar) => {
           const { cleaned, triggered } = stripGeofenceMarker(soFar)
@@ -231,7 +255,7 @@ export default function App() {
       }
     } catch (err) {
       const error = describeEngineError(err)
-      setEngineState({ status: 'error', modelId: model.webllmId, progress: 0, progressText: '', error })
+      setEngineState({ status: 'error', modelId: cloud ? null : model.webllmId, progress: 0, progressText: '', error })
       updateConversation(conv.id, (c) => ({
         ...c,
         messages: c.messages.map((m) =>
@@ -289,10 +313,12 @@ export default function App() {
           />
           <ModelPicker
             modelId={active?.modelId ?? DEFAULT_MODEL_ID}
+            veniceKeySet={veniceKeySet}
             onChange={(modelId) => {
               if (active) updateConversation(active.id, (c) => ({ ...c, modelId }))
               else createConversation(modelId)
             }}
+            onManageVenice={() => setShowVenice(true)}
           />
 
           <div className="ml-auto flex items-center gap-0.5">
@@ -323,8 +349,14 @@ export default function App() {
 
         <EngineBanner state={engineState} />
 
-        {showPrompt || showHeartRate ? (
+        {showPrompt || showHeartRate || showVenice ? (
           <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-3">
+            {showVenice ? (
+              <VenicePanel
+                onClose={() => setShowVenice(false)}
+                onKeyChange={(key) => setVeniceKeySet(!!key)}
+              />
+            ) : null}
             {showHeartRate ? (
               <HeartRatePanel
                 onClose={() => setShowHeartRate(false)}
@@ -335,6 +367,7 @@ export default function App() {
               <SystemPromptPanel
                 locationSharing={locationSharing}
                 geofenceActive={!!active?.geofenceAnchor}
+                cloud={isVeniceModelId(active?.modelId)}
                 onClose={() => setShowPrompt(false)}
               />
             ) : null}
@@ -358,6 +391,7 @@ export default function App() {
           onSend={sendMessage}
           onStop={sending ? stopGenerating : undefined}
           locationSharing={locationSharing}
+          cloudModelName={active && isVeniceModelId(active.modelId) ? veniceModelName(active.modelId) : null}
         />
       </div>
     </div>

@@ -5,6 +5,18 @@ import { interruptGeneration } from './engine'
 const SYSTEM_PROMPT =
   'You are Haven, a private AI assistant. You run entirely on the user\'s device — no message ever leaves their browser. Be helpful, direct, and concise.'
 
+// The local prompt's privacy claim would be false here, and the model would repeat it to the user.
+const CLOUD_SYSTEM_PROMPT =
+  'You are Haven, an AI assistant. You are running on a cloud model through Venice.ai, not on the user\'s device. Be helpful, direct, and concise.'
+
+export interface PromptContext {
+  /** True when the reply comes from Venice rather than the on-device model. */
+  cloud?: boolean
+  locationLine?: string | null
+  geofenceLine?: string | null
+  heartRateLine?: string | null
+}
+
 function currentDateTimeLine(): string {
   const now = new Date()
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -15,24 +27,21 @@ function currentDateTimeLine(): string {
   return `Current date and time: ${formatted} (${timeZone}).`
 }
 
-export function buildSystemPrompt(
-  locationLine?: string | null,
-  geofenceLine?: string | null,
-  heartRateLine?: string | null,
-): string {
-  return [SYSTEM_PROMPT, currentDateTimeLine(), locationLine, geofenceLine, heartRateLine]
+export function buildSystemPrompt(context: PromptContext = {}): string {
+  return [
+    context.cloud ? CLOUD_SYSTEM_PROMPT : SYSTEM_PROMPT,
+    currentDateTimeLine(),
+    context.locationLine,
+    context.geofenceLine,
+    context.heartRateLine,
+  ]
     .filter(Boolean)
     .join('\n')
 }
 
-export function toChatHistory(
-  messages: Message[],
-  locationLine?: string | null,
-  geofenceLine?: string | null,
-  heartRateLine?: string | null,
-) {
+export function toChatHistory(messages: Message[], context: PromptContext = {}) {
   return [
-    { role: 'system' as const, content: buildSystemPrompt(locationLine, geofenceLine, heartRateLine) },
+    { role: 'system' as const, content: buildSystemPrompt(context) },
     ...messages
       .filter((m) => m.content.trim().length > 0)
       .map((m) => ({ role: m.role, content: m.content })),
