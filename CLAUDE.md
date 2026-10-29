@@ -20,11 +20,11 @@ npx oxlint             # lint
 - `src/App.tsx` — state, the send pipeline, header/toolbar.
 - `src/lib/` — engine and sensing modules: `engine`, `venice`, `respond`, `storage`, `capability`,
   `engineErrors`, `location`, `geofence`, `heartRate`.
+- `src/components/` — UI. `src/data/models.ts` — the model roster.
 
 Replies come from one of two providers, chosen per conversation by its `modelId`: an on-device
 WebLLM model (the default) or a Venice.ai cloud model (ids prefixed `venice:`, `src/lib/venice.ts`).
 Everything else — history, the system-prompt lines, the geofence marker — is shared.
-- `src/components/` — UI. `src/data/models.ts` — the model roster.
 
 Device context reaches the model as **system-prompt lines**, assembled by `buildSystemPrompt` in
 `src/lib/respond.ts`: date/time, location, geofence distance, heart rate. Each is null when its
