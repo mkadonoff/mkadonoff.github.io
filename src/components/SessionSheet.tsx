@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Frame, Note, input, primary, secondary } from './Sheet'
 import type { SessionSheet as Sheet, HostOptions } from '../lib/useSharedSession'
-import { AGREEMENT_FIELDS, DEFAULT_INSTRUCTIONS, EMPTY_AGREEMENT, agreementChanges, getSavedName } from '../lib/session'
+import { AGREEMENT_FIELDS, DEFAULT_AGREEMENT, DEFAULT_INSTRUCTIONS, EMPTY_AGREEMENT, agreementChanges, getSavedName } from '../lib/session'
 import type { Agreement, SessionMode, SharedSession } from '../types'
 import { MODELS } from '../data/models'
 import { getCachedVeniceModels, getVeniceKey, toVeniceModelId } from '../lib/venice'
@@ -140,7 +140,7 @@ function ModelSelect({ choices, modelId, onChange, label }: { choices: ModelChoi
       {choice && !choice.cloud ? (
         <span className="text-[11px] text-amber-300/80">
           On-device models are small and won't follow a session well.
-          {hasVenice ? ' A Venice model will do far better.' : ' Add a Venice key in the model picker for larger models.'}
+          {hasVenice ? ' A Venice model will do far better.' : ' Add a Venice key in Settings for larger models.'}
         </span>
       ) : null}
     </label>
@@ -160,7 +160,7 @@ function AgreementFields({ value, onChange }: { value: Agreement; onChange: (nex
             value={value[f.key]}
             onChange={(e) => onChange({ ...value, [f.key]: e.target.value })}
             placeholder={f.placeholder}
-            rows={f.key === 'notes' ? 2 : 3}
+            rows={f.key === 'notes' ? 2 : f.required ? 5 : 3}
             className={`${input} text-sm`}
           />
         </label>
@@ -179,7 +179,7 @@ function HostForm({ onHost }: { onHost: (options: HostOptions) => void }) {
   const [name, setName] = useState(getSavedName)
   const [modelId, setModelId] = useState(choices[0]?.id ?? '')
   const [instructions, setInstructions] = useState(DEFAULT_INSTRUCTIONS)
-  const [agreement, setAgreement] = useState<Agreement>(EMPTY_AGREEMENT)
+  const [agreement, setAgreement] = useState<Agreement>(DEFAULT_AGREEMENT)
   const choice = choices.find((c) => c.id === modelId)
   const power = mode === 'power'
   const ai = power ? 'AI coach' : 'mediator'
@@ -223,6 +223,10 @@ function HostForm({ onHost }: { onHost: (options: HostOptions) => void }) {
       {power ? (
         <>
           <p className="pt-1 text-sm font-medium text-neutral-200">The agreement</p>
+          <Note>
+            The required parts are filled in with a starting point. Change them to fit the two of you — the Lead sees
+            exactly what you write and must accept it before joining.
+          </Note>
           <AgreementFields value={agreement} onChange={setAgreement} />
         </>
       ) : (

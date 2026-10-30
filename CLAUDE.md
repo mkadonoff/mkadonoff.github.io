@@ -170,7 +170,10 @@ Run `npx tsc -b && npx oxlint && npm run build`, then:
   person the limits protect holds the phone that enforces them. Don't add a dominant-hosts option.
 - **The agreement** (`Agreement`: what the dominant may direct, limits, absolute limits, check-ins,
   aftercare, notes) is rendered into the AI's instructions by `buildPowerInstructions`, which tells
-  the AI to refuse anything under absolute limits. The guest accepts it before joining.
+  the AI to refuse anything under absolute limits. The guest accepts it before joining. Required:
+  what the dominant may direct, absolute limits, and aftercare — the safeword prompt tells the AI to
+  follow the agreed aftercare. New agreements start from `DEFAULT_AGREEMENT`, which prefills those
+  three; empty optional fields are left out of the rendered instructions.
 - **Changes are proposals.** Either person proposes; it applies only when the *other* accepts. The
   host validates: nobody accepts their own proposal, one open at a time. Applying bumps
   `agreementVersion` and re-renders the instructions, so a later rejoin re-asks for consent only if

@@ -114,11 +114,31 @@ export const AGREEMENT_FIELDS: { key: keyof Agreement; label: string; placeholde
     required: true,
   },
   { key: 'checkIns', label: 'Check-ins', placeholder: 'e.g. ask how I am doing every 20 minutes, and after anything new' },
-  { key: 'aftercare', label: 'Aftercare', placeholder: 'e.g. quiet time together, water, talk through how it went' },
+  {
+    key: 'aftercare',
+    label: 'Aftercare',
+    placeholder: 'e.g. quiet time together, water, talk through how it went',
+    // The safeword prompt tells the coach to follow the agreed aftercare, so it must exist.
+    required: true,
+  },
   { key: 'notes', label: 'Anything else the AI coach should know', placeholder: 'Optional' },
 ]
 
 export const EMPTY_AGREEMENT: Agreement = { directs: '', limits: '', absoluteLimits: '', checkIns: '', aftercare: '', notes: '' }
+
+/**
+ * A starting point for a new agreement: the required fields prefilled, written in the Follower's
+ * voice since the Follower writes it. Meant to be edited, and the Lead reviews it before joining.
+ */
+export const DEFAULT_AGREEMENT: Agreement = {
+  ...EMPTY_AGREEMENT,
+  directs:
+    'How I address you, small tasks and routines we have talked about beforehand, and how we spend our time together during the session.',
+  absoluteLimits:
+    'Anything that causes injury or lasting harm. Anything involving money. Sharing photos, messages or details about me with anyone. Involving anyone else. Anything when either of us has been drinking or using drugs.',
+  aftercare:
+    'Stop and check in with me gently. Water and something to eat. Quiet time close together. Talk through how it went once I am ready, and check in again the next day.',
+}
 
 export function renderAgreement(agreement: Agreement): string {
   return AGREEMENT_FIELDS.filter((f) => agreement[f.key].trim())
