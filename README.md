@@ -56,11 +56,11 @@ transmitted anywhere.
   - **Mediation**: a neutral AI mediator. Either person can pause or leave,
     and the mediator can stay silent when it isn't needed.
   - **Protocol**: for a consensual power-exchange relationship, with the roles
-    shown as Lead and Follow. The Follow hosts and writes an agreement (what
+    shown as Lead and Follower. The Follower hosts and writes an agreement (what
     the Lead may direct, limits, absolute limits, check-ins, aftercare); the
     Lead accepts it before joining. The AI coach works only within it. Either
     person can call the safeword, which stops all direction and switches the
-    AI to care; only the Follow can lift it, unless the Lead called it.
+    AI to care; only the Follower can lift it, unless the Lead called it.
     Changes to the agreement are proposals that the other person must accept.
   - Each person can open a **private coach** chat that reads the session. It
     runs on their own phone with their own model; the other person never sees it

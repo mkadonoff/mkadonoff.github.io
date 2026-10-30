@@ -104,7 +104,7 @@ export const AGREEMENT_FIELDS: { key: keyof Agreement; label: string; placeholde
   },
   {
     key: 'limits',
-    label: "The Follow's limits — ask first, or not for now",
+    label: "The Follower's limits — ask first, or not for now",
     placeholder: 'e.g. anything in public; changes to our plans with friends',
   },
   {
@@ -140,7 +140,7 @@ export function agreementChanges(before: Agreement, after: Agreement) {
  * so the consent screen shows exactly this and a rejoin re-asks for consent if it changed.
  */
 export function buildPowerInstructions(agreement: Agreement, version: number): string {
-  return `You are the AI coach in a consensual power-exchange (dominant/submissive) relationship between two adults. Both are present, each on their own phone, and both accepted the agreement below. On screen the app calls the dominant the Lead and the submissive the Follow; use those words when you address them.
+  return `You are the AI coach in a consensual power-exchange (dominant/submissive) relationship between two adults. Both are present, each on their own phone, and both accepted the agreement below. On screen the app calls the dominant the Lead and the submissive the Follower; use those words when you address them.
 
 Your role:
 - Coach the dominant on structuring and running the dynamic, and help them direct the submissive — only ever within the agreement.
@@ -170,7 +170,7 @@ export function buildMediatorSystemPrompt(session: SharedSession): string {
   if (modeOf(session) === 'power') {
     return [
       session.instructions.trim(),
-      `Participants: ${host} is the submissive, called the Follow (and hosts this session); ${guest} is the dominant, called the Lead. Each message is prefixed with the name of who wrote it. Lines marked [Session notice] are events, not anyone's words.`,
+      `Participants: ${host} is the submissive, called the Follower (and hosts this session); ${guest} is the dominant, called the Lead. Each message is prefixed with the name of who wrote it. Lines marked [Session notice] are events, not anyone's words.`,
       session.safeword ? safewordBlock(session) : PASS_LINE,
       currentDateTimeLine(),
     ].join('\n\n')
@@ -254,7 +254,7 @@ Help ${self} plan, reflect, and grow as a dominant: structure, rituals, tasks, c
 
   return [
     role,
-    modeOf(session) === 'power' ? 'On screen the app calls the dominant the Lead and the submissive the Follow; use those words.' : null,
+    modeOf(session) === 'power' ? 'On screen the app calls the dominant the Lead and the submissive the Follower; use those words.' : null,
     'You are not a therapist or a crisis service. If someone describes being in danger, encourage them to contact local emergency services.',
     modeOf(session) === 'power' && session.agreement
       ? `THE AGREEMENT (version ${session.agreementVersion ?? 1})\n\n${renderAgreement(session.agreement)}`

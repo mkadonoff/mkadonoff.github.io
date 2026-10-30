@@ -203,7 +203,7 @@ function HostForm({ onHost }: { onHost: (options: HostOptions) => void }) {
 
       {power ? (
         <Note>
-          <span className="font-medium text-neutral-200">You are the Follow, and you host.</span> The AI coach runs
+          <span className="font-medium text-neutral-200">You are the Follower, and you host.</span> The AI coach runs
           on your phone and holds the agreement, so the person giving up control keeps the phone that enforces the limits.
           The Lead reviews and accepts the agreement before joining. Either of you can call the safeword at any
           time, and only you can lift it — or the Lead can lift one they called themselves. Changes to the agreement

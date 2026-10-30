@@ -50,7 +50,7 @@ export function SessionBar(props: Props) {
             }`}
           />
           With {peer} · {status}
-          {power ? ` · you are the ${isHost ? 'Follow' : 'Lead'}` : ''}
+          {power ? ` · you are the ${isHost ? 'Follower' : 'Lead'}` : ''}
         </p>
         <p className="truncate text-[11px] text-neutral-500">
           {ai}: {session.modelLabel}
