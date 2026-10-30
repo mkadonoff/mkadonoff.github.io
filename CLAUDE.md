@@ -161,6 +161,11 @@ Run `npx tsc -b && npx oxlint && npm run build`, then:
 
 ### Power mode — the safeguards are the point; keep them load-bearing
 
+- **Names differ by audience, on purpose.** On screen the mode is **Protocol** and the roles are
+  **Lead** (dominant) and **Follow** (submissive) — discreet on a phone others may glance at. In code
+  it stays `mode: 'power'` (persisted, so don't rename it without a migration), and the AI's prompts
+  keep "dominant"/"submissive" for precision, with a line telling the model to say Lead and Follow.
+
 - **The submissive always hosts.** The host's phone runs the AI and holds the agreement, so the
   person the limits protect holds the phone that enforces them. Don't add a dominant-hosts option.
 - **The agreement** (`Agreement`: what the dominant may direct, limits, absolute limits, check-ins,

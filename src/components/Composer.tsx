@@ -114,7 +114,7 @@ function SessionDisclosure({ session }: { session: SharedSession }) {
   const where = session.role === 'host' ? 'this phone' : `${session.hostName}'s phone`
   return (
     <span className="text-sky-300/80">
-      {modeOf(session) === 'power' ? 'Power-exchange session' : 'Mediated session'}: what you send goes directly to{' '}
+      {modeOf(session) === 'power' ? 'Protocol session' : 'Mediated session'}: what you send goes directly to{' '}
       {peer}'s phone over an encrypted link, and to the {aiNoun(session)}, which runs on {where}
       {session.cloud ? ' and sends the shared conversation to Venice.ai' : ''}. No location or heart rate is shared.
     </span>

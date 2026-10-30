@@ -196,17 +196,17 @@ function HostForm({ onHost }: { onHost: (options: HostOptions) => void }) {
               mode === m ? 'border-amber-500/60 bg-amber-500/10 text-amber-200' : 'border-white/10 bg-white/5 text-neutral-300'
             }`}
           >
-            {m === 'power' ? 'Power exchange' : 'Mediation'}
+            {m === 'power' ? 'Protocol' : 'Mediation'}
           </button>
         ))}
       </div>
 
       {power ? (
         <Note>
-          <span className="font-medium text-neutral-200">You are the submissive, and you host.</span> The AI coach runs
+          <span className="font-medium text-neutral-200">You are the Follow, and you host.</span> The AI coach runs
           on your phone and holds the agreement, so the person giving up control keeps the phone that enforces the limits.
-          The dominant reviews and accepts the agreement before joining. Either of you can call the safeword at any
-          time, and only you can lift it — or the dominant can lift one they called themselves. Changes to the agreement
+          The Lead reviews and accepts the agreement before joining. Either of you can call the safeword at any
+          time, and only you can lift it — or the Lead can lift one they called themselves. Changes to the agreement
           take effect only when both of you accept them.
         </Note>
       ) : (
@@ -286,7 +286,7 @@ function Consent({ sheet, onAccept, onDecline }: { sheet: Extract<Sheet, { step:
     <div className="flex flex-col gap-3">
       <Note>
         <span className="font-medium text-neutral-200">{setup.hostName}</span>{' '}
-        {power ? 'invited you to a power-exchange session, as the dominant.' : 'invited you to a mediated session.'} Review
+        {power ? 'invited you to a Protocol session, as the Lead.' : 'invited you to a mediated session.'} Review
         what you'd be agreeing to.
       </Note>
 

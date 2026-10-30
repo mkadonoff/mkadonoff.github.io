@@ -55,13 +55,13 @@ transmitted anywhere.
   AI. Pair by scanning QR codes (best on the same Wi-Fi). Two modes:
   - **Mediation**: a neutral AI mediator. Either person can pause or leave,
     and the mediator can stay silent when it isn't needed.
-  - **Power exchange**: for a consensual dominant/submissive relationship. The
-    submissive hosts and writes an agreement (what the dominant may direct,
-    limits, absolute limits, check-ins, aftercare); the dominant accepts it
-    before joining. The AI coach works only within it. Either person can call
-    the safeword, which stops all direction and switches the AI to care; only
-    the submissive can lift it, unless the dominant called it. Changes to the
-    agreement are proposals that the other person must accept.
+  - **Protocol**: for a consensual power-exchange relationship, with the roles
+    shown as Lead and Follow. The Follow hosts and writes an agreement (what
+    the Lead may direct, limits, absolute limits, check-ins, aftercare); the
+    Lead accepts it before joining. The AI coach works only within it. Either
+    person can call the safeword, which stops all direction and switches the
+    AI to care; only the Follow can lift it, unless the Lead called it.
+    Changes to the agreement are proposals that the other person must accept.
   - Each person can open a **private coach** chat that reads the session. It
     runs on their own phone with their own model; the other person never sees it
 - **Settings** (sidebar → Settings): your Venice key, the default model for
