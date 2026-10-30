@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import type { InitProgressReport } from '@mlc-ai/web-llm'
 import type { Agreement, Conversation, Message, Proposal, SessionMode, SessionRole, SharedSession } from '../types'
-import { acceptAnswer, answerOffer, createOffer, joinLink, primeLocalAddresses, type PeerLink } from './peer'
+import { acceptAnswer, answerOffer, createOffer, joinLink, type PeerLink } from './peer'
 import {
   buildMediatorHistory,
   buildPowerInstructions,
@@ -19,8 +19,10 @@ import {
 import { prepareGenerator } from './generate'
 import { describeEngineError, engineErrorText } from './engineErrors'
 
-/** Long enough for a slow handshake, short enough that someone isn't left staring at a spinner. */
-const CONNECT_TIMEOUT_MS = 20_000
+/** After the host scans the reply, the link should form within seconds; this allows a slow network. */
+const HOST_CONNECT_TIMEOUT_MS = 30_000
+/** The joining phone waits while the host finds and scans its reply code, which can take a while. */
+const GUEST_CONNECT_TIMEOUT_MS = 120_000
 /** Streaming the mediator's reply to the guest: often enough to feel live, not once per token. */
 const STREAM_INTERVAL_MS = 150
 
@@ -34,7 +36,7 @@ export type SessionSheet =
   | { step: 'join'; error: string | null }
   | { step: 'guest-answer'; code: string; connected: boolean }
   | { step: 'guest-consent'; setup: SetupMessage }
-  | { step: 'notice'; title: string; body: string }
+  | { step: 'notice'; title: string; body: string; details?: string }
   | { step: 'agreement' }
   | { step: 'agreement-edit' }
 
@@ -92,6 +94,8 @@ export function useSharedSession({ getConversations, setConversations, setActive
   const connectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** True while the current link is still being paired, before it carries a live session. */
   const pairingRef = useRef(false)
+  /** Which side this phone is on, for the troubleshooting report. */
+  const roleRef = useRef('unknown')
   const mediatorRef = useRef({ running: false, pending: false, abort: null as AbortController | null })
 
   // ---------- persistence ----------
@@ -128,13 +132,15 @@ export function useSharedSession({ getConversations, setConversations, setActive
     connectTimerRef.current = null
   }
 
-  function startConnectTimer() {
+  function startConnectTimer(ms: number) {
     clearConnectTimer()
     connectTimerRef.current = setTimeout(() => {
-      if (linkRef.current?.isOpen) return
+      const link = linkRef.current
+      if (link?.isOpen) return
+      const details = link?.diagnostics(roleRef.current)
       dropLink()
-      setSheet({ step: 'notice', ...CONNECT_FAILED })
-    }, CONNECT_TIMEOUT_MS)
+      setSheet({ step: 'notice', ...CONNECT_FAILED, details })
+    }, ms)
   }
 
   /** Closes any current link without marking the session ended — it can be reconnected later. */
@@ -149,8 +155,9 @@ export function useSharedSession({ getConversations, setConversations, setActive
     setConnected(false)
   }
 
-  function install(link: PeerLink, onMessage: (m: WireMessage) => void) {
+  function install(link: PeerLink, onMessage: (m: WireMessage) => void, role: string) {
     dropLink()
+    roleRef.current = role
     pairingRef.current = true
     linkRef.current = link
     link.onMessage = (raw) => {
@@ -163,9 +170,17 @@ export function useSharedSession({ getConversations, setConversations, setActive
       setConnected(false)
       mediatorRef.current.abort?.abort()
       // Mid-handshake, a closed link means the attempt failed; once live, the session bar shows it.
+      const details = link.diagnostics(roleRef.current)
       setSheet((s) =>
-        s.step === 'host-waiting' || s.step === 'guest-answer' || s.step === 'guest-consent'
-          ? { step: 'notice', title: 'The connection closed', body: 'The other phone disconnected before the session started.' }
+        s.step === 'host-waiting' || s.step === 'guest-answer' || s.step === 'guest-consent' || s.step === 'working'
+          ? {
+              step: 'notice',
+              title: 'The connection dropped',
+              body:
+                'The link between the phones closed before the session started. Make sure both phones stay on this ' +
+                'screen and on the same Wi-Fi, then try again. If it keeps happening, the details below say why.',
+              details,
+            }
           : s,
       )
     }
@@ -189,10 +204,9 @@ export function useSharedSession({ getConversations, setConversations, setActive
   async function host(setup: SetupMessage, convId: string | null) {
     setSheet({ step: 'working', label: 'Preparing the invitation code…' })
     try {
-      await primeLocalAddresses()
       const { link, code } = await createOffer()
       hostSetupRef.current = { setup, convId }
-      install(link, handleHostMessage)
+      install(link, handleHostMessage, 'host (showed the invitation)')
       link.onOpen = () => {
         clearConnectTimer()
         link.send(setup)
@@ -249,7 +263,7 @@ export function useSharedSession({ getConversations, setConversations, setActive
     try {
       await acceptAnswer(link, input)
       setSheet({ step: 'working', label: 'Connecting to the other phone…' })
-      startConnectTimer()
+      startConnectTimer(HOST_CONNECT_TIMEOUT_MS)
     } catch (err) {
       setSheet({ ...sheet, error: err instanceof Error ? err.message : String(err) })
     }
@@ -435,15 +449,14 @@ export function useSharedSession({ getConversations, setConversations, setActive
   async function joinWithCode(input: string) {
     setSheet({ step: 'working', label: 'Joining the session…' })
     try {
-      await primeLocalAddresses()
       const { link, code } = await answerOffer(input)
-      install(link, handleGuestMessage)
+      install(link, handleGuestMessage, 'guest (scanned the invitation)')
       link.onOpen = () => {
         clearConnectTimer()
         setSheet((s) => (s.step === 'guest-answer' ? { ...s, connected: true } : s))
       }
       setSheet({ step: 'guest-answer', code, connected: false })
-      startConnectTimer()
+      startConnectTimer(GUEST_CONNECT_TIMEOUT_MS)
     } catch (err) {
       setSheet({ step: 'join', error: err instanceof Error ? err.message : String(err) })
     }

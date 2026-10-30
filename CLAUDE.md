@@ -147,8 +147,19 @@ Run `npx tsc -b && npx oxlint && npm run build`, then:
   replies are held back while they could still be a pass, then dropped on both phones.
 - **No sensor data in sessions** — no location, geofence or heart-rate lines, and those toolbar
   controls are hidden there. Sharing one person's data needs that person's own consent, not built yet.
-- Safari only reveals real local addresses to pages holding camera permission; `primeLocalAddresses`
-  requests it before creating a description. A hedge, unverified on a device.
+- Safari only reveals real local addresses while a page is capturing from the camera, so
+  `holdCamera` keeps it open while each description is gathered, then releases it. A hedge,
+  unverified on a device.
+- **Pairing is lenient.** Before the channel first opens, a `failed` connection state is not treated
+  as final — the host may simply not have scanned the reply yet (Chromium recovers fine from a 25 s
+  gap). Only the timeouts end an attempt: 2 min for the guest waiting to be scanned, 30 s for the host
+  after scanning. Once open, `failed` or `closed` ends the link.
+- **Troubleshooting report.** `PeerLink.diagnostics` (shown on any pairing failure, with a Copy
+  button) lists the kinds of address each side offered — local, hidden-local mDNS, public STUN —
+  and a timeline of connection states. Addresses themselves are never included. It's the only
+  window into device-only failures, since iOS browsers have no developer tools.
+- **First real-iPhone test failed to connect** (Oct 2026): "the connection closed" before the session
+  started, cause unknown. The fixes above shipped next; the report is how to find out the rest.
 - A home-screen web app and Safari have **separate storage** on iOS. Opening an invitation with the
   Camera app lands in Safari, so someone who uses Haven from the home screen should join in-app.
 - **Testing:** two Playwright browser contexts on one Chromium connect over localhost; use the

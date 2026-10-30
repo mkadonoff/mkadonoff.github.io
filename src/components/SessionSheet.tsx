@@ -554,6 +554,17 @@ export function SessionSheet(props: Props) {
         <Frame title={sheet.title} onClose={onClose}>
           <div className="flex flex-col gap-3">
             <Note>{sheet.body}</Note>
+            {sheet.details ? (
+              <details className="rounded-xl border border-white/10 bg-black/30 p-3" open>
+                <summary className="cursor-pointer text-xs text-neutral-400">Troubleshooting details</summary>
+                <pre className="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap text-[11px] leading-relaxed text-neutral-300">
+                  {sheet.details}
+                </pre>
+                <div className="mt-2">
+                  <ShareButton text={sheet.details} title="Haven connection details" label="Copy details" />
+                </div>
+              </details>
+            ) : null}
             <button className={secondary} onClick={onClose}>
               OK
             </button>
