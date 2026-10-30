@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Conversation, EngineState, Message } from './types'
-import { DEFAULT_MODEL_ID, MODELS } from './data/models'
+import { MODELS } from './data/models'
 import { clearConversations, loadConversations, saveConversations } from './lib/storage'
 import type { InitProgressReport } from '@mlc-ai/web-llm'
 import { toChatHistory } from './lib/respond'
@@ -10,7 +10,7 @@ import { getLocationLine, isLocationSharingEnabled, setLocationSharingEnabled } 
 import { buildGeofenceLine, captureGeofenceAnchor, stripGeofenceMarker } from './lib/geofence'
 import { getReading, heartRateLine } from './lib/heartRate'
 import { describeEngineError, engineErrorText } from './lib/engineErrors'
-import { getCachedVeniceModels, getVeniceKey, isVeniceModelId, toVeniceModelId, veniceModelName } from './lib/venice'
+import { getVeniceKey, isVeniceModelId, veniceModelName } from './lib/venice'
 import { Sidebar } from './components/Sidebar'
 import { ModelPicker } from './components/ModelPicker'
 import { MessageBubble } from './components/MessageBubble'
@@ -18,7 +18,8 @@ import { Composer } from './components/Composer'
 import { EmptyState } from './components/EmptyState'
 import { EngineBanner } from './components/EngineBanner'
 import { HeartRatePanel } from './components/HeartRatePanel'
-import { VenicePanel } from './components/VenicePanel'
+import { SettingsSheet } from './components/SettingsSheet'
+import { getCoachModelId, getDefaultModelId } from './lib/settings'
 import { SessionSheet } from './components/SessionSheet'
 import { SessionBar } from './components/SessionBar'
 import { useSharedSession } from './lib/useSharedSession'
@@ -48,7 +49,7 @@ export default function App() {
   const [sending, setSending] = useState(false)
   const [showPrompt, setShowPrompt] = useState(false)
   const [showHeartRate, setShowHeartRate] = useState(false)
-  const [showVenice, setShowVenice] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [veniceKeySet, setVeniceKeySet] = useState(() => !!getVeniceKey())
   const [locationSharing, setLocationSharing] = useState(isLocationSharingEnabled)
   const [, forceRerender] = useState(0)
@@ -95,7 +96,7 @@ export default function App() {
     setConversations((prev) => prev.map((c) => (c.id === id ? updater(c) : c)))
   }
 
-  function createConversation(modelId = DEFAULT_MODEL_ID): Conversation {
+  function createConversation(modelId = getDefaultModelId()): Conversation {
     const conv: Conversation = {
       id: makeId(),
       title: 'New chat',
@@ -130,11 +131,10 @@ export default function App() {
       setActiveId(existing.id)
       return
     }
-    const venice = getVeniceKey() ? getCachedVeniceModels()[0] : undefined
     const conv: Conversation = {
       id: makeId(),
       title: `Private coach · ${sessionConv.shared?.peerName ?? 'session'}`,
-      modelId: venice ? toVeniceModelId(venice.id) : DEFAULT_MODEL_ID,
+      modelId: getCoachModelId(),
       messages: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -332,6 +332,10 @@ export default function App() {
         }}
         onDelete={deleteConversation}
         onDeleteAll={deleteAllConversations}
+        onOpenSettings={() => {
+          setShowSettings(true)
+          if (isMobile()) setSidebarOpen(false)
+        }}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
@@ -359,13 +363,13 @@ export default function App() {
             <p className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-200">{active?.title}</p>
           ) : (
           <ModelPicker
-            modelId={active?.modelId ?? DEFAULT_MODEL_ID}
+            modelId={active?.modelId ?? getDefaultModelId()}
             veniceKeySet={veniceKeySet}
             onChange={(modelId) => {
               if (active) updateConversation(active.id, (c) => ({ ...c, modelId }))
               else createConversation(modelId)
             }}
-            onManageVenice={() => setShowVenice(true)}
+            onManageVenice={() => setShowSettings(true)}
           />
           )}
 
@@ -434,14 +438,8 @@ export default function App() {
 
         <EngineBanner state={engineState} />
 
-        {showPrompt || showHeartRate || showVenice ? (
+        {showPrompt || showHeartRate ? (
           <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-3">
-            {showVenice ? (
-              <VenicePanel
-                onClose={() => setShowVenice(false)}
-                onKeyChange={(key) => setVeniceKeySet(!!key)}
-              />
-            ) : null}
             {showHeartRate ? (
               <HeartRatePanel
                 onClose={() => setShowHeartRate(false)}
@@ -483,6 +481,15 @@ export default function App() {
           cloudModelName={active && isVeniceModelId(active.modelId) ? veniceModelName(active.modelId) : null}
         />
       </div>
+
+      {showSettings ? (
+        <SettingsSheet
+          onClose={() => setShowSettings(false)}
+          onVeniceKeyChange={(key) => setVeniceKeySet(!!key)}
+          locationSharing={locationSharing}
+          onToggleLocation={toggleLocationSharing}
+        />
+      ) : null}
 
       <SessionSheet
         sheet={session.sheet}

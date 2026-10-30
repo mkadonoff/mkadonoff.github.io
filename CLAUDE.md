@@ -19,9 +19,14 @@ npx oxlint             # lint
 
 - `src/App.tsx` — state, the send pipeline, header/toolbar.
 - `src/lib/` — engine and sensing modules: `engine`, `generate`, `venice`, `respond`, `storage`,
-  `capability`, `engineErrors`, `location`, `geofence`, `heartRate`; sessions: `peer`, `session`,
-  `useSharedSession`.
+  `capability`, `engineErrors`, `location`, `geofence`, `heartRate`, `settings`; sessions: `peer`,
+  `session`, `useSharedSession`.
 - `src/components/` — UI. `src/data/models.ts` — the model roster.
+- **Settings** (`SettingsSheet`, opened from the sidebar and the model picker's Venice link) gathers
+  the Venice key, default model for new chats, session name, and location sharing. Each value keeps
+  its own `localStorage` key and saves on change; there is no settings object to migrate. A Venice
+  default falls back to the built-in default once the key is removed (`getDefaultModelId`).
+  `Sheet.tsx` holds the bottom-sheet frame and styles shared with the session screens.
 
 Replies come from one of two providers, chosen per conversation by its `modelId`: an on-device
 WebLLM model (the default) or a Venice.ai cloud model (ids prefixed `venice:`, `src/lib/venice.ts`).

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Conversation } from '../types'
-import { PlusIcon, ShieldIcon, TrashIcon } from './icons'
+import { GearIcon, PlusIcon, ShieldIcon, TrashIcon } from './icons'
 
 interface Props {
   conversations: Conversation[]
@@ -9,6 +9,7 @@ interface Props {
   onNew: () => void
   onDelete: (id: string) => void
   onDeleteAll: () => void
+  onOpenSettings: () => void
   open: boolean
   onClose: () => void
 }
@@ -25,6 +26,7 @@ export function Sidebar({
   onNew,
   onDelete,
   onDeleteAll,
+  onOpenSettings,
   open,
   onClose,
 }: Props) {
@@ -151,6 +153,14 @@ export function Sidebar({
                   : 'Clear all chats'}
               </button>
             )}
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="mb-2 -ml-1 flex min-h-9 w-full items-center gap-2 rounded-lg px-1 text-sm text-neutral-300 hover:bg-white/5"
+            >
+              <GearIcon className="h-4 w-4" />
+              Settings
+            </button>
             <p className="flex items-center gap-1.5 text-[11px] text-neutral-600">
               <ShieldIcon className="h-3 w-3" />
               Stored only on this device

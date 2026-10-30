@@ -64,6 +64,9 @@ transmitted anywhere.
     agreement are proposals that the other person must accept.
   - Each person can open a **private coach** chat that reads the session. It
     runs on their own phone with their own model; the other person never sees it
+- **Settings** (sidebar → Settings): your Venice key, the default model for
+  new chats, your name in sessions, and location sharing — saved in this
+  browser and kept between visits
 - Sidebar with conversation history: create, switch, delete (tap the trash
   icon, then tap again to confirm), and clear all
 - Nine models from ~0.4 GB to ~2.9 GB, ordered smallest first, each showing
